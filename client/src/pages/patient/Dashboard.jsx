@@ -1975,6 +1975,7 @@ import {
   Activity,
   AlertTriangle,
   Bell,
+  Camera,
   CalendarDays,
   ChevronRight,
   ClipboardList,
@@ -1991,6 +1992,7 @@ import {
   Share2,
   ShieldCheck,
   TestTube2,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -2020,6 +2022,7 @@ import {
 import { auth, db } from "../../firebase";
 import Navbar from "../../components/Navbar";
 import { fetchProfile } from "../../services/profileService";
+import { deleteReport, downloadReport, fetchReports, uploadReport } from "../../services/reportService";
 import { useAuth } from "../../context/AuthContext";
 
 
@@ -2036,7 +2039,34 @@ const emptyPatient = {
   phone: "—",
   height: "",
   weight: "",
+  bmi: "",
+  profileImage: "",
 };
+const formatHeight = (centimeters) => {
+  const totalInches = Number(centimeters) / 2.54;
+  if (!Number.isFinite(totalInches) || totalInches <= 0) return "";
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches - feet * 12);
+  return `${inches === 12 ? feet + 1 : feet}' ${inches === 12 ? 0 : inches}"`;
+};
+const formatUploadDateTime = (value) => {
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  return value && !Number.isNaN(date.getTime())
+    ? date.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "Uploaded report";
+};
+const reportCacheKey = (uid) => `meridian-reports-${uid}`;
+const readCachedReports = (uid) => {
+  try {
+    return JSON.parse(localStorage.getItem(reportCacheKey(uid)) || "[]");
+  } catch {
+    return [];
+  }
+};
+const mergeReports = (...reportLists) => reportLists.flat().filter((report, index, all) => {
+  const reportKey = report._id || report.reportId || report.id || report.fileName;
+  return index === all.findIndex((item) => String(item._id || item.reportId || item.id || item.fileName) === String(reportKey));
+});
 
 
 /* ============================================================
@@ -2105,13 +2135,17 @@ export default function Dashboard() {
   const [selectedLab, setSelectedLab] =
     useState("HbA1c (%)");
 
-  const [uploadFile, setUploadFile] =
-    useState(null);
+  const [uploadFiles, setUploadFiles] =
+    useState([]);
+
+  const [uploading, setUploading] =
+    useState(false);
 
   const [uploadMessage, setUploadMessage] =
     useState("");
 
   const fileInputRef = useRef(null);
+  const avatarInputRef = useRef(null);
 
 
   /* ==========================================================
@@ -2150,13 +2184,15 @@ export default function Dashboard() {
         setPatient({
           ...emptyPatient,
           name: profile.name || loginName,
-          patientId: profilePatient._id || profile.id || "—",
-          age: calculatedAge,
+          patientId: profilePatient.patientCode || profilePatient._id || profile.id || "—",
+          age: profilePatient.age ?? calculatedAge,
           gender: profilePatient.gender || "—",
           bloodGroup: profilePatient.bloodGroup || "—",
           phone: profile.phone || user.phoneNumber || "—",
           height: profilePatient.height || "",
           weight: profilePatient.weight || "",
+          bmi: profilePatient.bmi || "",
+          profileImage: localStorage.getItem("profileImage") || "",
         });
 
 
@@ -2164,21 +2200,33 @@ export default function Dashboard() {
            LOAD ALL COLLECTIONS IN PARALLEL TO REDUCE DASHBOARD WAIT
         ------------------------------------------------------ */
 
-        const [conditionsSnap, medicationsSnap, labsSnap, reportsSnap, appointmentsSnap, alertsSnap] =
+        const apiReports = await fetchReports().catch(() => []);
+        const serverReportList = Array.isArray(apiReports)
+          ? apiReports
+          : apiReports.reports || [];
+        setReports(serverReportList);
+        localStorage.setItem(reportCacheKey(user.uid), JSON.stringify(serverReportList));
+
+        const [conditionsSnap, medicationsSnap, labsSnap, appointmentsSnap, alertsSnap] =
           await Promise.all([
             getDocs(query(collection(db, "conditions"), where("userId", "==", user.uid))),
             getDocs(query(collection(db, "medications"), where("userId", "==", user.uid))),
             getDocs(query(collection(db, "labResults"), where("userId", "==", user.uid))),
-            getDocs(query(collection(db, "reports"), where("userId", "==", user.uid))),
             getDocs(query(collection(db, "appointments"), where("userId", "==", user.uid))),
             getDocs(query(collection(db, "alerts"), where("userId", "==", user.uid))),
           ]);
 
+        const firestoreConditions = conditionsSnap.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
         setConditions(
-          conditionsSnap.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-          }))
+          firestoreConditions.length > 0
+            ? firestoreConditions
+            : (profilePatient.conditions || []).map((item, index) => ({
+                id: item._id || `profile-condition-${index}`,
+                ...(typeof item === "string" ? { name: item } : item),
+              }))
         );
 
         setMedications(
@@ -2190,13 +2238,6 @@ export default function Dashboard() {
 
         setLabs(
           labsSnap.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-          }))
-        );
-
-        setReports(
-          reportsSnap.docs.map((item) => ({
             id: item.id,
             ...item.data(),
           }))
@@ -2257,6 +2298,10 @@ export default function Dashboard() {
   ============================================================ */
 
   const bmi = useMemo(() => {
+
+    if (patient.bmi) {
+      return Number(patient.bmi).toFixed(1);
+    }
 
     const height =
       Number(patient.height);
@@ -2468,34 +2513,28 @@ export default function Dashboard() {
   ============================================================ */
 
   const healthScore = useMemo(() => {
-
-    let score = 100;
-
-    score -=
-      alerts.filter(
-        (alert) =>
-          alert.type === "red"
-      ).length * 10;
-
-    score -=
-      alerts.filter(
-        (alert) =>
-          alert.type === "orange"
-      ).length * 5;
-
-    score -=
-      alerts.filter(
-        (alert) =>
-          alert.type === "yellow"
-      ).length * 2;
-
-    if (score < 0) {
-      score = 0;
-    }
-
-    return score;
-
-  }, [alerts]);
+    const profileValues = [
+      patient.age !== "—" && patient.age !== "",
+      patient.gender !== "—" && patient.gender !== "",
+      patient.bloodGroup !== "—" && patient.bloodGroup !== "",
+      Number(patient.height) > 0,
+      Number(patient.weight) > 0,
+      Number(patient.bmi) > 0 || Boolean(bmi),
+    ];
+    const profileScore = (profileValues.filter(Boolean).length / profileValues.length) * 25;
+    const labScore = labs.length
+      ? labs.reduce((total, lab) => {
+          const status = String(lab.status || "recorded").toLowerCase();
+          return total + (status === "normal" ? 45 : status === "abnormal" ? 28 : status === "critical" ? 10 : 32);
+        }, 0) / labs.length
+      : 0;
+    const alertScore = Math.max(
+      0,
+      20 - alerts.filter((alert) => alert.type === "red").length * 12 - alerts.filter((alert) => alert.type === "orange").length * 7 - alerts.filter((alert) => alert.type === "yellow").length * 3,
+    );
+    const activityScore = Math.min(10, medications.length * 2 + appointments.length);
+    return Math.round(Math.min(100, profileScore + labScore + alertScore + activityScore));
+  }, [alerts, appointments.length, bmi, labs, medications.length, patient]);
 
 
   /* ============================================================
@@ -2537,15 +2576,31 @@ export default function Dashboard() {
 
   };
 
+  const handleAvatarChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const scale = Math.min(1, 512 / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        const profileImage = canvas.toDataURL("image/jpeg", 0.82);
+        localStorage.setItem("profileImage", profileImage);
+        setPatient((current) => ({ ...current, profileImage }));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
 
   const handleFileChange = (event) => {
-
-    const file =
-      event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
 
     const allowedTypes = [
       "application/pdf",
@@ -2553,49 +2608,53 @@ export default function Dashboard() {
       "image/png",
     ];
 
-    if (
-      !allowedTypes.includes(
-        file.type
-      )
-    ) {
-
-      setUploadMessage(
-        "Please choose a PDF, JPG or PNG file."
-      );
-
-      setUploadFile(null);
-
+    const invalidFile = files.find((file) => !allowedTypes.includes(file.type) || file.size > 10 * 1024 * 1024);
+    if (invalidFile) {
+      setUploadMessage("Each file must be a PDF, JPG or PNG under 10MB.");
+      setUploadFiles([]);
       return;
     }
+    setUploadFiles(files);
+    setUploadMessage(`${files.length} report${files.length === 1 ? "" : "s"} selected`);
 
+  };
 
-    if (
-      file.size >
-      10 * 1024 * 1024
-    ) {
-
-      setUploadMessage(
-        "File size must be less than 10MB."
-      );
-
-      setUploadFile(null);
-
-      return;
+  const handleUploadReports = async () => {
+    if (!uploadFiles.length) return;
+    try {
+      setUploading(true);
+      setUploadMessage("Uploading reports...");
+      const uploaded = await Promise.all(uploadFiles.map((file) => uploadReport(file)));
+      const uploadedReports = uploaded.map((item) => item.report || item);
+      setReports((currentReports) => {
+        const nextReports = mergeReports(uploadedReports, currentReports);
+        const userId = auth.currentUser?.uid;
+        if (userId) localStorage.setItem(reportCacheKey(userId), JSON.stringify(nextReports));
+        return nextReports;
+      });
+      fetchReports().then((latestReports) => {
+        const serverReports = Array.isArray(latestReports) ? latestReports : latestReports.reports || [];
+        setReports((currentReports) => {
+          const nextReports = mergeReports(currentReports, serverReports);
+          const userId = auth.currentUser?.uid;
+          if (userId) localStorage.setItem(reportCacheKey(userId), JSON.stringify(nextReports));
+          return nextReports;
+        });
+      }).catch(() => {});
+      setUploadFiles([]);
+      setUploadMessage("Reports uploaded successfully.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (error) {
+      setUploadMessage(error.message || "Unable to upload reports.");
+    } finally {
+      setUploading(false);
     }
-
-
-    setUploadFile(file);
-
-    setUploadMessage(
-      `${file.name} selected`
-    );
-
   };
 
 
   const clearSelectedFile = () => {
 
-    setUploadFile(null);
+    setUploadFiles([]);
 
     setUploadMessage("");
 
@@ -2605,6 +2664,35 @@ export default function Dashboard() {
 
   };
 
+  const handleDeleteReport = async (report) => {
+    const reportId = report._id || report.reportId || report.id;
+    if (!reportId || !window.confirm(`Delete ${report.name || report.fileName || "this report"}?`)) return;
+    try {
+      await deleteReport(reportId);
+      setReports((currentReports) => {
+        const nextReports = currentReports.filter((item) => String(item._id || item.id || item.reportId) !== String(reportId));
+        const userId = auth.currentUser?.uid;
+        if (userId) localStorage.setItem(reportCacheKey(userId), JSON.stringify(nextReports));
+        return nextReports;
+      });
+      setUploadMessage("Report deleted successfully.");
+    } catch (error) {
+      setUploadMessage(error.message || "Unable to delete report.");
+    }
+  };
+
+  const handleDownloadReport = async (report) => {
+    try {
+      await downloadReport(report);
+    } catch (error) {
+      setUploadMessage(error.message || "Unable to download report.");
+    }
+  };
+
+  const recentReports = [...reports]
+    .sort((first, second) => new Date(second.date || second.createdAt) - new Date(first.date || first.createdAt))
+    .slice(0, 3);
+
 
   /* ============================================================
      UI
@@ -2612,7 +2700,7 @@ export default function Dashboard() {
 
   return (
 
-    <div className="min-h-screen bg-[#f7faf8] text-[#18231d]">
+    <div className="min-h-screen bg-[#f5faf7] text-[#183a28]">
 
 
       <Navbar />
@@ -2622,14 +2710,14 @@ export default function Dashboard() {
           MAIN
       ====================================================== */}
 
-      <main className="mx-auto max-w-[1500px] space-y-4 p-5">
+      <main className="mx-auto max-w-[1500px] space-y-5 px-4 pb-10 pt-5 sm:px-6 lg:px-8">
 
 
         {/* ====================================================
             PATIENT HEADER
         ==================================================== */}
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_3px_18px_rgba(0,0,0,0.035)]">
+        <section className="rounded-[26px] border border-[#d5ebdc] bg-gradient-to-br from-white via-white to-[#edf9f0] p-5 shadow-[0_12px_40px_rgba(31,105,59,0.07)] sm:p-7">
 
           <div className="flex flex-col justify-between gap-6 2xl:flex-row">
 
@@ -2638,32 +2726,21 @@ export default function Dashboard() {
 
             <div className="flex items-center gap-5">
 
-              <div className="h-[92px] w-[92px] shrink-0 overflow-hidden rounded-full border-4 border-[#edf7f0] bg-[#e9f6ed]">
-
-                <img
-                  src="/patient.png"
-                  alt="Patient"
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display =
-                      "none";
-                  }}
-                />
-
-              </div>
+              <button type="button" onClick={() => avatarInputRef.current?.click()} title="Upload profile photo" className="group relative flex h-[92px] w-[92px] shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[#dff3e5] text-2xl font-bold text-[#25854d] shadow-[0_8px_20px_rgba(31,105,59,0.12)]">
+                {patient.profileImage ? <img src={patient.profileImage} alt="Patient" className="h-full w-full object-cover" /> : patient.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+                <span className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[#25854d] text-white"><Camera size={14} /></span>
+              </button>
+              <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
 
 
               <div>
 
-                <h2 className="text-[22px] font-bold tracking-tight text-gray-900">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#25854d]">Patient overview</p>
+                <h2 className="mt-1 text-[25px] font-bold tracking-tight text-[#183a28]">
 
                   Welcome back,{" "}
 
                   {patient.name}
-
-                  <span>
-                    👋
-                  </span>
 
                 </h2>
 
@@ -2706,7 +2783,7 @@ export default function Dashboard() {
                     Height:{" "}
 
                     {patient.height
-                      ? `${patient.height} cm`
+                      ? formatHeight(patient.height)
                       : "—"}
 
                   </Tag>
@@ -2746,7 +2823,7 @@ export default function Dashboard() {
 
             {/* HEALTH SCORE */}
 
-            <div className="w-full rounded-xl border border-gray-200 bg-white p-4 2xl:w-[235px]">
+              <div className="w-full rounded-2xl border border-[#d5ebdc] bg-white/80 p-4 shadow-sm 2xl:w-[235px]">
 
               <div className="flex items-center gap-3">
 
@@ -2814,8 +2891,8 @@ export default function Dashboard() {
               <p className="mt-2 text-[11px] text-gray-500">
 
                 {healthScore >= 80
-                  ? "You're doing great! Keep it up."
-                  : "Please review your health alerts."}
+                  ? "Your profile and recent records are looking healthy."
+                  : "Complete your profile and review your recent health records."}
 
               </p>
 
@@ -2824,7 +2901,7 @@ export default function Dashboard() {
 
             {/* CONDITIONS */}
 
-            <div className="w-full rounded-xl border border-[#cfe9d6] bg-gradient-to-br from-[#f8fff9] to-[#eefaf1] p-4 2xl:w-[210px]">
+              <div className="w-full rounded-2xl border border-[#cfe9d6] bg-gradient-to-br from-[#f8fff9] to-[#eaf7ed] p-4 shadow-sm 2xl:w-[210px]">
 
               <MiniMetric
                 icon={
@@ -3311,126 +3388,12 @@ export default function Dashboard() {
           <div className="space-y-4">
 
 
-            {/* UPLOAD */}
-
             <DashboardCard>
 
               <CardHeading
-                icon={
-                  <Upload size={17} />
-                }
-                title="Upload Health Report"
+                icon={<FileText size={17} />}
+                title="Recent Uploads"
               />
-
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={
-                  handleFileChange
-                }
-                className="hidden"
-              />
-
-
-              <div
-                onClick={
-                  handleChooseFile
-                }
-                className="mt-4 cursor-pointer rounded-xl border-2 border-dashed border-[#b8dfc1] bg-[#fbfefc] p-5 text-center transition hover:bg-[#f5fcf7]"
-              >
-
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e9f8ed] text-[#159447]">
-
-                  <Upload size={25} />
-
-                </div>
-
-
-                <p className="mt-3 text-[12px] font-medium text-gray-700">
-
-                  Drag & drop your report here
-
-                </p>
-
-
-                <p className="my-2 text-[10px] text-gray-400">
-
-                  or
-
-                </p>
-
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleChooseFile();
-                  }}
-                  className="rounded-lg bg-[#159447] px-5 py-2.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-[#117d3b] hover:shadow-md"
-                >
-
-                  Choose File
-
-                </button>
-
-
-                <p className="mt-3 text-[9px] text-gray-400">
-
-                  Supports: PDF, JPG, PNG
-                  (Max 10MB)
-
-                </p>
-
-              </div>
-
-
-              {/* SELECTED FILE */}
-
-              {uploadFile && (
-
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-[#d7ebdc] bg-[#f5fbf6] p-2">
-
-                  <FileText
-                    size={17}
-                    className="text-[#159447]"
-                  />
-
-                  <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-gray-700">
-
-                    {uploadFile.name}
-
-                  </span>
-
-                  <button
-                    onClick={
-                      clearSelectedFile
-                    }
-                    className="text-gray-400 hover:text-red-500"
-                  >
-
-                    <X size={15} />
-
-                  </button>
-
-                </div>
-
-              )}
-
-
-              {uploadMessage && (
-
-                <p className="mt-2 text-center text-[9px] text-gray-500">
-
-                  {uploadMessage}
-
-                </p>
-
-              )}
-
-
-              {/* RECENT UPLOADS */}
 
               <div className="mt-4 flex items-center justify-between">
 
@@ -3441,7 +3404,7 @@ export default function Dashboard() {
                 </h4>
 
 
-                <button className="text-[10px] font-semibold text-[#159447]">
+                <button type="button" onClick={() => navigate("/patient/reports")} className="text-[10px] font-semibold text-[#159447]">
 
                   View All
 
@@ -3450,20 +3413,16 @@ export default function Dashboard() {
               </div>
 
 
-              <div className="mt-2 space-y-1">
+              <div className="mt-2 divide-y divide-[#edf3ee] overflow-hidden rounded-xl border border-[#edf3ee]">
 
-                {reports.length > 0 ? (
+                {recentReports.length > 0 ? (
 
-                  reports
-                    .slice(-3)
-                    .reverse()
+                  recentReports
                     .map(
                       (report) => (
 
                         <UploadedFile
-                          key={
-                            report.id
-                          }
+                          key={report._id || report.id || report.reportId}
                           icon={
                             report.type?.includes(
                               "image"
@@ -3471,16 +3430,15 @@ export default function Dashboard() {
                               ? <FileImage />
                               : <FileText />
                           }
+                          iconClassName={report.type?.includes("image") ? "bg-[#edf8f0] text-[#43a965]" : "bg-[#fff2ed] text-[#e6754d]"}
                           name={
                             report.name ||
                             report.fileName ||
                             "Health Report"
                           }
-                          details={
-                            report.date ||
-                            report.size ||
-                            "Uploaded report"
-                          }
+                          details={formatUploadDateTime(report.date || report.createdAt)}
+                          onDownload={() => handleDownloadReport(report)}
+                          onDelete={() => handleDeleteReport(report)}
                         />
 
                       )
@@ -3589,7 +3547,11 @@ export default function Dashboard() {
                 </p>
 
 
-                <button className="mt-3 flex items-center gap-1 rounded-lg border border-[#d5ead9] px-3 py-2 text-[10px] font-semibold text-[#159447] hover:bg-[#f2faf4]">
+                <button
+                  type="button"
+                  onClick={() => navigate("/patient/assistant")}
+                  className="mt-3 flex items-center gap-1 rounded-lg border border-[#d5ead9] px-3 py-2 text-[10px] font-semibold text-[#159447] hover:bg-[#f2faf4]"
+                >
 
                   Contact Support
 
@@ -3821,14 +3783,14 @@ function PatientInfo({
 
     <div>
 
-      <p className="text-[9px] font-medium text-gray-400">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7a9683]">
 
         {label}
 
       </p>
 
 
-      <p className="mt-1 text-[12px] font-semibold text-gray-700">
+                  <p className="mt-1 text-[12px] font-semibold text-[#315343]">
 
         {value || "—"}
 
@@ -3851,7 +3813,7 @@ function Tag({
 
   return (
 
-    <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[9px] font-medium text-gray-600">
+    <span className="rounded-full border border-[#d4ead9] bg-[#f1faf3] px-3 py-1 text-[9px] font-semibold text-[#4d765c]">
 
       {children}
 
@@ -3930,7 +3892,7 @@ function DashboardCard({
   return (
 
     <div
-      className={`rounded-2xl border border-gray-200 bg-white p-4 shadow-[0_3px_18px_rgba(0,0,0,0.035)] ${className}`}
+      className={`rounded-2xl border border-[#dcece1] bg-white p-5 shadow-[0_8px_28px_rgba(31,105,59,0.05)] ${className}`}
     >
 
       {children}
@@ -3966,7 +3928,7 @@ function CardHeading({
       )}
 
 
-      <h3 className="text-[14px] font-semibold text-gray-800">
+      <h3 className="text-[14px] font-bold text-[#244b35]">
 
         {title}
 
@@ -3992,7 +3954,7 @@ function StatCard({
 
   return (
 
-    <div className="group flex min-h-[95px] flex-col items-center justify-center rounded-xl border border-gray-100 bg-[#fcfefd] px-2 py-3 text-center transition hover:-translate-y-0.5 hover:border-[#cce8d3] hover:bg-[#f7fcf8]">
+    <div className="group flex min-h-[100px] flex-col items-center justify-center rounded-xl border border-[#e1eee4] bg-[#f9fdf9] px-2 py-3 text-center transition hover:-translate-y-0.5 hover:border-[#b9ddc2] hover:bg-[#f1faf3]">
 
       <Icon
         size={19}
@@ -4001,14 +3963,14 @@ function StatCard({
       />
 
 
-      <strong className="mt-2 text-[17px]">
+      <strong className="mt-2 text-[18px] text-[#183a28]">
 
         {value}
 
       </strong>
 
 
-      <span className="mt-0.5 text-[10px] font-semibold text-gray-700">
+      <span className="mt-0.5 text-[10px] font-bold text-[#315343]">
 
         {title}
 
@@ -4115,13 +4077,16 @@ function UploadedFile({
   icon,
   name,
   details,
+  iconClassName = "text-[#159447] bg-[#f0f8f2]",
+  onDownload,
+  onDelete,
 }) {
 
   return (
 
     <div className="flex items-center gap-2 rounded-lg px-2 py-2 transition hover:bg-[#f7faf8]">
 
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f0f8f2] text-[#159447]">
+      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconClassName}`}>
 
         {React.cloneElement(
           icon,
@@ -4151,10 +4116,10 @@ function UploadedFile({
       </div>
 
 
-      <Download
-        size={14}
-        className="cursor-pointer text-[#159447]"
-      />
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={onDownload} title="Download report" className="flex h-7 w-7 items-center justify-center rounded-lg text-[#159447] transition hover:bg-[#edf8f0]"><Download size={14} /></button>
+        <button type="button" onClick={onDelete} title="Delete report" className="flex h-7 w-7 items-center justify-center rounded-lg text-[#c96a61] transition hover:bg-[#fff1ef]"><Trash2 size={14} /></button>
+      </div>
 
     </div>
 

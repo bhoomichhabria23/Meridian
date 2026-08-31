@@ -7,6 +7,8 @@ const { verifyToken } = require("../middleware/auth");
 const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 
+const createPatientCode = () => `MRD-${Math.floor(100000 + Math.random() * 900000)}`;
+
 const currentUserId = (req) => req.user._id || req.user.id;
 
 async function currentUser(req) {
@@ -36,7 +38,10 @@ router.get("/me", verifyToken, async (req, res) => {
       });
     }
 
-    const patient = user.role === "patient" ? await Patient.findOne({ userId: user._id }).lean() : null;
+    let patient = user.role === "patient" ? await Patient.findOne({ userId: user._id }).lean() : null;
+    if (patient && !patient.patientCode) {
+      patient = await Patient.findByIdAndUpdate(patient._id, { $set: { patientCode: createPatientCode() } }, { new: true }).lean();
+    }
     res.json({ ...user, patient });
   } catch (error) {
     console.error("Get profile error:", error);
@@ -53,8 +58,11 @@ router.put("/me", verifyToken, async (req, res) => {
     const existingUser = await currentUser(req);
     const user = existingUser ? await User.findByIdAndUpdate(existingUser._id, allowedUser, { new: true, runValidators: true }).lean() : null;
     if (!user) return res.status(404).json({ message: "User profile not found" });
-    const patientFields = (({ dateOfBirth, gender, bloodGroup, allergies, conditions, emergencyContact, address }) => ({ dateOfBirth, gender, bloodGroup, allergies, conditions, emergencyContact, address }))(req.body);
-    const patient = user.role === "patient" ? await Patient.findOneAndUpdate({ userId: user._id }, patientFields, { new: true, upsert: true, runValidators: true }).lean() : null;
+    const patientFields = (({ age, height, weight, bmi, dateOfBirth, gender, bloodGroup, allergies, conditions, emergencyContact, address, phone }) => ({ age, height, weight, bmi, dateOfBirth, gender, bloodGroup, allergies, conditions, emergencyContact, address, phone }))(req.body);
+    let patient = user.role === "patient" ? await Patient.findOneAndUpdate({ userId: user._id }, patientFields, { new: true, upsert: true, runValidators: true }).lean() : null;
+    if (patient && !patient.patientCode) {
+      patient = await Patient.findByIdAndUpdate(patient._id, { $set: { patientCode: createPatientCode() } }, { new: true }).lean();
+    }
     res.json({ ...user, patient });
   } catch (error) { res.status(400).json({ message: error.message }); }
 });

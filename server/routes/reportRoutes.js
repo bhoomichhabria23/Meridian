@@ -3,12 +3,14 @@ const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 const Report = require("../models/Report");
 const Patient = require("../models/Patient");
 const authMiddleware = require("../middleware/authMiddleware");
 const { createEvent } = require("../utils/medicalEvent");
 const { extractReportText } = require("../utils/ocrService");
+const { classifyReport } = require("../utils/reportClassifier");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 
@@ -77,6 +79,39 @@ const upload = multer({
   },
 });
 
+function reportFilePath(fileUrl) {
+  if (!fileUrl) return null;
+  let fileName = fileUrl;
+  try {
+    fileName = new URL(fileUrl, "http://localhost").pathname;
+  } catch {
+    // Keep relative legacy paths as-is.
+  }
+  return path.join(uploadDirectory, path.basename(decodeURIComponent(fileName)));
+}
+
+function reportLookup(id) {
+  const lookup = [{ reportId: id }];
+  if (mongoose.Types.ObjectId.isValid(id)) lookup.unshift({ _id: id });
+  return { $or: lookup };
+}
+
+async function findOwnedReport(id, identity) {
+  const owner = mongoose.Types.ObjectId.isValid(identity)
+    ? await User.findById(identity).select("_id")
+    : await User.findOne({ firebaseUid: identity }).select("_id");
+  if (!owner) return null;
+
+  const patient = await Patient.findOne({ userId: owner._id }).select("_id");
+  const ownerIds = [owner._id];
+  if (patient) ownerIds.push(patient._id);
+
+  return Report.findOne({
+    ...reportLookup(id),
+    patientId: { $in: ownerIds },
+  });
+}
+
 /*
 GET REPORTS
 */
@@ -85,9 +120,18 @@ router.get(
   authMiddleware,
   async (req, res) => {
     try {
+      const owner = mongoose.Types.ObjectId.isValid(req.user.id)
+        ? await User.findById(req.user.id).select("_id")
+        : await User.findOne({ firebaseUid: req.user.id }).select("_id");
+      if (!owner) return res.json([]);
+
+      const patient = await Patient.findOne({ userId: owner._id }).select("_id");
+      const ownerIds = [owner._id];
+      if (patient) ownerIds.push(patient._id);
+
       const reports =
         await Report.find({
-          patientId: req.user.id,
+          patientId: { $in: ownerIds },
         })
           .populate(
             "doctorId",
@@ -202,7 +246,7 @@ router.post(
       }
 
       const { patientId, title, type, date } = req.body || {};
-      const patient = await findPatientByIdentity(patientId);
+      const patient = await findPatientByIdentity(patientId || req.user.id);
       if (!patient) return res.status(404).json({ message: "Patient not found." });
 
       const reportType = {
@@ -212,13 +256,7 @@ router.post(
         prescription_copy: "other",
       }[type] || type;
 
-      const reportCount =
-        await Report.countDocuments();
-
-      const reportId =
-        `RPT${String(
-          reportCount + 1
-        ).padStart(5, "0")}`;
+      const reportId = `RPT${Date.now()}${crypto.randomInt(1000, 10000)}`;
 
       let extractedText = "";
       let ocrStatus = "pending";
@@ -229,6 +267,11 @@ router.post(
         console.error("Report OCR error:", ocrError.message);
         ocrStatus = "failed";
       }
+      const classifiedType = classifyReport({
+        extractedText,
+        name: title,
+        fileName: req.file.originalname,
+      });
 
       const report =
         await Report.create({
@@ -239,7 +282,7 @@ router.post(
 
           name: title || path.parse(req.file.originalname).name,
 
-          type: ["lab", "imaging", "cardiology", "pathology", "radiology"].includes(reportType) ? reportType : "other",
+          type: classifiedType,
 
           status: "pending",
 
@@ -290,16 +333,13 @@ router.get(
   authMiddleware,
   async (req, res) => {
     try {
-      const report = await Report.findOne({
-        _id: req.params.id,
-        patientId: req.user.id,
-      });
+      const report = await findOwnedReport(req.params.id, req.user.id);
 
       if (!report || !report.fileUrl) {
         return res.status(404).json({ message: "Report file not found." });
       }
 
-      const filePath = path.join(uploadDirectory, path.basename(report.fileUrl));
+      const filePath = reportFilePath(report.fileUrl);
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: "Report file not found." });
       }
@@ -319,11 +359,7 @@ router.delete(
   authMiddleware,
   async (req, res) => {
     try {
-      const report =
-        await Report.findOne({
-          _id: req.params.id,
-          patientId: req.user.id,
-        });
+      const report = await findOwnedReport(req.params.id, req.user.id);
 
       if (!report) {
         return res.status(404).json({
@@ -333,15 +369,9 @@ router.delete(
       }
 
       if (report.fileName) {
-        const filePath =
-          path.join(
-            uploadDirectory,
-            path.basename(
-              report.fileUrl
-            )
-          );
+        const filePath = reportFilePath(report.fileUrl);
 
-        if (fs.existsSync(filePath)) {
+        if (filePath && fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
         }
       }

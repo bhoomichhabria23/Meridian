@@ -151,19 +151,21 @@ export default function PatientReports() {
   const [selected, setSelected] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
-  const patientId = user?.id || user?._id || user?.patientId || user?.uid;
+  const patientId =
+    localStorage.getItem("patientId") ||
+    user?.patientId ||
+    user?.id ||
+    user?._id ||
+    user?.uid;
   const load = async () => {
     try {
       setLoading(true);
       setError("");
-      const [reportData, patientData] = await Promise.all([
-        fetchReports(),
-        fetchPatient(patientId),
-      ]);
+      const reportData = await fetchReports();
       setReports(
         Array.isArray(reportData) ? reportData : reportData.reports || [],
       );
-      setPatient(patientData);
+      setPatient(await fetchPatient(patientId).catch(() => null));
     } catch (requestError) {
       setError(requestError.message || "Please try again.");
     } finally {

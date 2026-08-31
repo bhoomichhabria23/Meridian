@@ -21,8 +21,9 @@ import {
   X,
   Eye,
 } from "lucide-react";
+import { deleteReport as deleteReportFile, downloadReport } from "../services/reportService";
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function StatCard({ icon, title, value, subtitle }) {
   return (
@@ -101,7 +102,9 @@ function ReportListItem({
       {/* TYPE */}
       <div>
         <span className="inline-flex rounded-md bg-green-50 px-2.5 py-1 text-xs font-semibold capitalize text-green-700">
-          {report.type || "Other"}
+          {["lab", "imaging"].includes(report.type?.toLowerCase())
+            ? report.type
+            : "clinical"}
         </span>
       </div>
 
@@ -214,6 +217,7 @@ export default function Reports() {
       const response = await fetch(
         `${API_URL}/api/reports`,
         {
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
             ...(token
@@ -280,6 +284,7 @@ export default function Reports() {
         `${API_URL}/api/reports/upload`,
         {
           method: "POST",
+          credentials: "include",
           headers: {
             ...(token
               ? {
@@ -331,25 +336,7 @@ export default function Reports() {
     try {
       const token = localStorage.getItem("token");
 
-      const response = await fetch(
-        `${API_URL}/api/reports/${selectedReport._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            ...(token
-              ? {
-                  Authorization: `Bearer ${token}`,
-                }
-              : {}),
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          "Unable to delete report"
-        );
-      }
+      await deleteReportFile(selectedReport._id);
 
       setSelectedReport(null);
 
@@ -370,11 +357,12 @@ export default function Reports() {
     let result = [...reports];
 
     if (category !== "all") {
-      result = result.filter(
-        (report) =>
-          report.type?.toLowerCase() ===
-          category.toLowerCase()
-      );
+      result = result.filter((report) => {
+        const reportType = report.type?.toLowerCase();
+        return category === "clinical"
+          ? !["lab", "imaging"].includes(reportType)
+          : reportType === category.toLowerCase();
+      });
     }
 
     const query = search
@@ -445,7 +433,7 @@ export default function Reports() {
       "imaging"
   ).length;
 
-  const otherReports = reports.filter(
+  const clinicalReports = reports.filter(
     (report) => {
       const type =
         report.type?.toLowerCase();
@@ -470,24 +458,13 @@ export default function Reports() {
   /*
    * DOWNLOAD
    */
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!selectedReport?.fileUrl) return;
-
-    const link =
-      document.createElement("a");
-
-    link.href =
-      selectedReport.fileUrl;
-
-    link.target = "_blank";
-    link.download =
-      selectedReport.name || "report";
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    link.remove();
+    try {
+      await downloadReport(selectedReport);
+    } catch (err) {
+      setError(err.message || "Unable to download report.");
+    }
   };
 
   /*
@@ -666,8 +643,8 @@ export default function Reports() {
 
             <StatCard
               icon={<File size={23} />}
-              title="Other Reports"
-              value={otherReports}
+              title="Clinical Reports"
+              value={clinicalReports}
               subtitle="All time"
             />
 
@@ -702,24 +679,9 @@ export default function Reports() {
                     icon: <ScanLine size={17} />,
                   },
                   {
-                    key: "cardiology",
-                    label: "Cardiology",
-                    icon: <HeartPulse size={17} />,
-                  },
-                  {
-                    key: "pathology",
-                    label: "Pathology",
-                    icon: <FlaskConical size={17} />,
-                  },
-                  {
-                    key: "radiology",
-                    label: "Radiology",
-                    icon: <ScanLine size={17} />,
-                  },
-                  {
-                    key: "other",
-                    label: "Others",
-                    icon: <File size={17} />,
+                    key: "clinical",
+                    label: "Clinical Reports",
+                    icon: <FileText size={17} />,
                   },
                 ].map((item) => (
                   <button

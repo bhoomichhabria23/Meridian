@@ -19,10 +19,12 @@ import {
 
 import { auth } from "../firebase";
 import { exchangeFirebaseSession } from "../services/authSessionService";
+import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { setUser } = useAuth();
 
   const [role, setRole] = useState("patient");
   const [showPassword, setShowPassword] = useState(false);
@@ -98,6 +100,7 @@ export default function LoginPage() {
       const user = userCredential.user;
 
       const serverUser = await exchangeFirebaseSession(user, { role });
+      const authenticatedRole = serverUser.role;
 
       console.log(
         "Firebase login successful:",
@@ -122,7 +125,7 @@ export default function LoginPage() {
         email: serverUser.email || user.email,
         name: serverUser.name || username,
         displayName: username,
-        role: role,
+        role: authenticatedRole,
       };
 
       localStorage.setItem(
@@ -130,7 +133,13 @@ export default function LoginPage() {
         JSON.stringify(storedUser)
       );
 
-      localStorage.setItem("role", role);
+      localStorage.setItem("role", authenticatedRole);
+      setUser({
+        ...storedUser,
+        token:
+          localStorage.getItem("token") ||
+          localStorage.getItem("auth_token"),
+      });
       toast.success("Login successful. Welcome back!");
 
       // =====================================================
@@ -148,7 +157,7 @@ export default function LoginPage() {
       // =====================================================
 
       setTimeout(() => {
-        navigate(getDashboardPath(role), {
+        navigate(getDashboardPath(authenticatedRole), {
           replace: true,
         });
       }, 1800);

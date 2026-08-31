@@ -24,6 +24,11 @@ const medicationSchema = new mongoose.Schema(
       default: "",
     },
 
+    condition: {
+      type: String,
+      default: "",
+    },
+
     type: {
       type: String,
       default: "Tablet",

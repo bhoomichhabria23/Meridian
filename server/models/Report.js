@@ -40,6 +40,7 @@ const reportSchema = new mongoose.Schema(
       enum: [
         "lab",
         "imaging",
+        "clinical",
         "cardiology",
         "pathology",
         "radiology",

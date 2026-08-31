@@ -35,19 +35,19 @@ export default function Home() {
                 Home
               </a>
 
-              <a
-                href="#features"
+              <Link
+                to="/features"
                 className="text-sm text-slate-600 hover:text-green-700 transition"
               >
                 Features
-              </a>
+              </Link>
 
-              <a
-                href="#how-it-works"
+              <Link
+                to="/how-it-works"
                 className="text-sm text-slate-600 hover:text-green-700 transition"
               >
                 How It Works
-              </a>
+              </Link>
 
               <a
                 href="#about"

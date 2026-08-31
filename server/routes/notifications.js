@@ -2,10 +2,11 @@ const express  = require('express');
 const router   = express.Router();
 const { verifyToken } = require('../middleware/auth');
 const Notification = require('../models/Notification');
+const currentUserId = (req) => req.user._id || req.user.id;
 
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const notifications = await Notification.find({ userId: req.user._id })
+    const notifications = await Notification.find({ userId: currentUserId(req) })
       .sort({ createdAt: -1 })
       .limit(20);
     res.json(notifications);
@@ -16,7 +17,7 @@ router.get('/', verifyToken, async (req, res) => {
 
 router.put('/:id/read', verifyToken, async (req, res) => {
   try {
-    const notification = await Notification.findById(req.params.id);
+    const notification = await Notification.findOne({ _id: req.params.id, userId: currentUserId(req) });
     if (!notification) return res.status(404).json({ message: 'Not found' });
     notification.read = true;
     await notification.save();

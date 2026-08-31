@@ -34,7 +34,7 @@ function normalizePatient(patient) {
   const user = patient?.userId || {};
   return patient ? {
     name: patient.name || patient.fullName || user.name,
-    patientId: patient.patientId || patient.mrdId || patient._id,
+    patientId: patient.patientCode || patient.patientId || patient.mrdId || patient._id,
     age: patient.age,
     gender: patient.gender,
     bloodGroup: patient.bloodGroup,

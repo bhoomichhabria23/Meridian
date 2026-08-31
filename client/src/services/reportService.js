@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function headers() {
   const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
@@ -6,7 +6,11 @@ function headers() {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    headers: { ...headers(), ...(options.headers || {}) },
+  });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.message || "Unable to load clinical reports.");
   return response;
 }
@@ -32,7 +36,9 @@ export async function uploadReport(file, patientId, title = "") {
 }
 
 export async function downloadReport(report) {
-  const response = await request(`/api/reports/${report._id}/download`);
+  const reportId = report?._id || report?.reportId || report?.id;
+  if (!reportId) throw new Error("This report is not available for download yet.");
+  const response = await request(`/api/reports/${encodeURIComponent(reportId)}/download`);
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -43,6 +49,7 @@ export async function downloadReport(report) {
 }
 
 export async function deleteReport(reportId) {
-  const response = await request(`/api/reports/${reportId}`, { method: "DELETE" });
+  if (!reportId) throw new Error("This report cannot be deleted because its server ID is missing.");
+  const response = await request(`/api/reports/${encodeURIComponent(reportId)}`, { method: "DELETE" });
   return response.json();
 }

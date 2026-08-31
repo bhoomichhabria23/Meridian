@@ -16,6 +16,8 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import Home from "./pages/Home";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import Features from "./pages/Features";
+import HowItWorks from "./pages/HowItWorks";
 
 /* =========================================================
    PATIENT PAGES
@@ -31,6 +33,8 @@ import PatientAppointments from "./pages/patient/Appointments";
 import PatientReminders from "./pages/patient/Reminders";
 import PatientProfile from "./pages/patient/Profile";
 import PatientAssistant from "./pages/patient/Assistant";
+import PatientNotifications from "./pages/patient/Notifications";
+import PatientLabResults from "./pages/patient/LabResults";
 
 /* =========================================================
    DOCTOR PAGES
@@ -149,6 +153,9 @@ function AppRoutes() {
         element={<Home />}
       />
 
+      <Route path="/features" element={<Features />} />
+      <Route path="/how-it-works" element={<HowItWorks />} />
+
       <Route
         path="/login"
         element={<LoginPage />}
@@ -228,6 +235,15 @@ function AppRoutes() {
       />
 
       <Route
+        path="/patient/labs"
+        element={
+          <ProtectedRoute role="patient">
+            <PatientLabResults />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/patient/appointments"
         element={
           <ProtectedRoute role="patient">
@@ -247,6 +263,7 @@ function AppRoutes() {
 
       <Route path="/patient/profile" element={<ProtectedRoute role="patient"><PatientProfile /></ProtectedRoute>} />
       <Route path="/patient/assistant" element={<ProtectedRoute role="patient"><PatientAssistant /></ProtectedRoute>} />
+      <Route path="/patient/notifications" element={<ProtectedRoute role="patient"><PatientNotifications /></ProtectedRoute>} />
 
 
       {/* =====================================================
