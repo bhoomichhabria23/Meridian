@@ -87,10 +87,10 @@ export default function Timeline() {
       });
   }, [data.events, eventType, fromDate, search, sortOrder, toDate]);
 
-  const exportTimeline = () => {
-    const rows = filteredEvents.map((event) => [event.date, event.type, event.title, event.doctor, event.facility]
+  const recordExport = () => {
+    const rows = filteredEvents.map((event) => [event.date, event.type, event.title, event.description || event.summary, event.doctor, event.facility]
       .map(csvValue).join(","));
-    const blob = new Blob([["Date,Type,Event,Clinician,Facility", ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([["Date,Type,Event,Description,Clinician,Facility", ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -113,7 +113,7 @@ export default function Timeline() {
             </div>
             <div className="flex flex-wrap gap-2">
               <label className="flex h-10 items-center gap-2 rounded-xl border border-[#dbe9df] bg-[#fbfdfb] px-3 text-sm text-[#6d7f76] focus-within:border-[#2d9960]"><Search size={16} className="text-[#2d9960]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search timeline" className="w-36 bg-transparent outline-none placeholder:text-[#9baa9f] sm:w-44" /></label>
-              <button type="button" onClick={() => setRecordOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#b9dac2] bg-white px-4 text-sm font-semibold text-[#237c4b] transition hover:bg-[#f1f8f3]"><Plus size={16} /> Add record</button><button type="button" onClick={exportTimeline} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#237c4b] px-4 text-sm font-semibold text-white transition hover:bg-[#17633a]"><Download size={16} /> Export</button>
+              <button type="button" onClick={() => setRecordOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#b9dac2] bg-white px-4 text-sm font-semibold text-[#237c4b] transition hover:bg-[#f1f8f3]"><Plus size={16} /> Add record</button><button type="button" onClick={recordExport} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#237c4b] px-4 text-sm font-semibold text-white transition hover:bg-[#17633a]"><Download size={16} /> Export</button>
             </div>
           </div>
         </header>

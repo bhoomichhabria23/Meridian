@@ -9,117 +9,163 @@ import {
   onAuthStateChanged,
   signOut,
 } from "firebase/auth";
+import axios from "axios";
 
 import { auth } from "../firebase";
 
-const AuthContext = createContext(null);
+const AuthContext =
+  createContext(null);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+export function AuthProvider({
+  children,
+}) {
+  const [user, setUser] =
+    useState(null);
+  const [loading, setLoading] =
+    useState(true);
+  const [token, setToken] =
+    useState(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (firebaseUser) => {
-        const storedUser = JSON.parse(
-          localStorage.getItem("user") || "null"
-        );
-        const storedRole =
-          localStorage.getItem("role") ||
-          storedUser?.role ||
-          "patient";
-
-        if (!firebaseUser) {
-          localStorage.removeItem("user");
-          localStorage.removeItem("role");
-          localStorage.removeItem("token");
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("patientId");
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        try {
-          const token =
-            localStorage.getItem("token") ||
-            localStorage.getItem("auth_token") ||
-            (await firebaseUser.getIdToken());
-
-          const nextUser = {
-            id: storedUser?.id || storedUser?._id,
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            name:
-              firebaseUser.displayName ||
-              storedUser?.name ||
-              storedUser?.displayName ||
-              "User",
-            displayName:
-              firebaseUser.displayName ||
-              storedUser?.displayName ||
-              storedUser?.name ||
-              "User",
-            photoURL: firebaseUser.photoURL || storedUser?.photoURL || "",
-            avatar: firebaseUser.photoURL || storedUser?.avatar || "",
-            role: storedRole,
-            token,
-          };
-
-          setUser(nextUser);
-          localStorage.setItem("user", JSON.stringify(nextUser));
-          localStorage.setItem("role", storedRole);
-        } catch (error) {
-          console.error(
-            "Failed to load Firebase user:",
-            error
-          );
-
-          const fallbackUser = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            name:
-              firebaseUser.displayName ||
-              storedUser?.name ||
-              storedUser?.displayName ||
-              "User",
-            displayName:
-              firebaseUser.displayName ||
-              storedUser?.displayName ||
-              storedUser?.name ||
-              "User",
-            photoURL: firebaseUser.photoURL || storedUser?.photoURL || "",
-            avatar: firebaseUser.photoURL || storedUser?.avatar || "",
-            role: storedRole,
-          };
-
-          setUser(fallbackUser);
-          localStorage.setItem("user", JSON.stringify(fallbackUser));
-        }
-
-        setLoading(false);
-      }
+    // Check for JWT token in localStorage first
+    const storedToken =
+      localStorage.getItem(
+        "token"
+      );
+    const storedUser = JSON.parse(
+      localStorage.getItem(
+        "user"
+      ) || "null"
     );
 
-    return () => unsubscribe();
+    if (
+      storedToken &&
+      storedUser
+    ) {
+      setToken(storedToken);
+      setUser(storedUser);
+      axios.defaults.headers.common[
+        "Authorization"
+      ] = `Bearer ${storedToken}`;
+      setLoading(false);
+      return;
+    }
+
+    // Fall back to Firebase auth
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        async (firebaseUser) => {
+          if (
+            !firebaseUser
+          ) {
+            localStorage.removeItem(
+              "user"
+            );
+            localStorage.removeItem(
+              "role"
+            );
+            localStorage.removeItem(
+              "token"
+            );
+            localStorage.removeItem(
+              "auth_token"
+            );
+            localStorage.removeItem(
+              "patientId"
+            );
+            setUser(null);
+            setToken(null);
+            setLoading(false);
+            return;
+          }
+
+          try {
+            const idToken =
+              await firebaseUser.getIdToken();
+            const storedRole =
+              localStorage.getItem(
+                "role"
+              ) || "patient";
+
+            const nextUser = {
+              id: firebaseUser.uid,
+              email:
+                firebaseUser.email,
+              name:
+                firebaseUser.displayName ||
+                firebaseUser.email,
+              role: storedRole,
+              firebaseUid:
+                firebaseUser.uid,
+            };
+
+            setUser(nextUser);
+            setToken(idToken);
+            localStorage.setItem(
+              "user",
+              JSON.stringify(
+                nextUser
+              )
+            );
+            localStorage.setItem(
+              "token",
+              idToken
+            );
+            localStorage.setItem(
+              "role",
+              storedRole
+            );
+            axios.defaults.headers.common[
+              "Authorization"
+            ] =
+              `Bearer ${idToken}`;
+          } catch (error) {
+            console.error(
+              "Auth error:",
+              error
+            );
+            setUser(null);
+            setToken(null);
+          } finally {
+            setLoading(false);
+          }
+        }
+      );
+
+    return () =>
+      unsubscribe();
   }, []);
 
   const logout = async () => {
     try {
       await signOut(auth);
-
-      localStorage.removeItem("user");
-      localStorage.removeItem("role");
-      localStorage.removeItem("token");
-      localStorage.removeItem("auth_token");
-
-      setUser(null);
-
-      window.location.href = "/login";
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error(
+        "Logout error:",
+        error
+      );
     }
+    localStorage.removeItem(
+      "user"
+    );
+    localStorage.removeItem(
+      "token"
+    );
+    localStorage.removeItem(
+      "role"
+    );
+    localStorage.removeItem(
+      "auth_token"
+    );
+    localStorage.removeItem(
+      "patientId"
+    );
+    delete axios.defaults.headers.common[
+      "Authorization"
+    ];
+    setUser(null);
+    setToken(null);
   };
 
   return (
@@ -129,6 +175,7 @@ export function AuthProvider({ children }) {
         setUser,
         loading,
         logout,
+        token,
       }}
     >
       {children}
@@ -136,4 +183,13 @@ export function AuthProvider({ children }) {
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  const context =
+    useContext(AuthContext);
+  if (!context) {
+    throw new Error(
+      "useAuth must be used within AuthProvider"
+    );
+  }
+  return context;
+}

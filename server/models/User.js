@@ -4,8 +4,9 @@ const userSchema = new mongoose.Schema(
   {
     firebaseUid: {
       type: String,
-      required: true,
+      default: null,
       unique: true,
+      sparse: true,
     },
 
     name: {
@@ -22,6 +23,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
+    },
+
+    password: {
+      type: String,
+      default: null,
     },
 
     role: {
@@ -33,6 +40,11 @@ const userSchema = new mongoose.Schema(
     specialization: {
       type: String,
       default: null,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   {

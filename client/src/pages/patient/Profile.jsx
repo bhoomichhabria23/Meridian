@@ -5,6 +5,7 @@ import {
   Camera,
   Edit3,
   LockKeyhole,
+  LogOut,
   MapPin,
   Phone,
   RefreshCw,
@@ -14,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import Navbar from "../../components/Navbar";
+import { useAuth } from "../../context/AuthContext";
 import {
   changePassword,
   fetchProfile,
@@ -142,6 +144,7 @@ function ErrorState({ error, retry }) {
 }
 
 export default function Profile() {
+  const { logout } = useAuth();
   const [profile, setProfile] = useState(empty);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -166,6 +169,10 @@ export default function Profile() {
   }, []);
   const set = (key, value) =>
     setProfile((current) => ({ ...current, [key]: value }));
+  const handleLogout = async () => {
+    if (!window.confirm("Are you sure you want to logout?")) return;
+    await logout();
+  };
   const handleImageChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -453,6 +460,13 @@ export default function Profile() {
             >
               <LockKeyhole size={17} className="text-[#25854d]" /> Change
               Password
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white p-4 text-sm font-bold text-red-600 shadow-sm hover:bg-red-50"
+            >
+              <LogOut size={17} /> Log out
             </button>
           </aside>
         </section>

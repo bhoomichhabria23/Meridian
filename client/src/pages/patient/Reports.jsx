@@ -54,51 +54,60 @@ const normalize = (value) => String(value || "").toLowerCase();
 
 function ReportCard({ report, onPreview, onDownload, onDelete }) {
   return (
-    <article className="group rounded-2xl border border-[#dcebe0] bg-white p-5 shadow-[0_8px_28px_rgba(31,105,59,0.04)] transition hover:-translate-y-0.5 hover:border-[#9fcfb0] hover:shadow-[0_14px_34px_rgba(31,105,59,0.09)]">
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf7ed] text-[#25854d]">
-          <FileText size={21} />
-        </span>
-        <span className="rounded-full bg-[#f0f8f2] px-2.5 py-1 text-[10px] font-bold capitalize text-[#587966]">
+    <article className="group flex-shrink-0 w-full sm:w-96 rounded-2xl border border-[#dcebe0] bg-gradient-to-br from-white to-[#f8fcf9] p-6 shadow-[0_8px_28px_rgba(31,105,59,0.04)] transition hover:-translate-y-1 hover:border-[#9fcfb0] hover:shadow-[0_16px_48px_rgba(31,105,59,0.12)]">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3 flex-1">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eaf7ed] to-[#d4f1e0] text-[#25854d] flex-shrink-0">
+            <FileText size={24} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-[#1b3c2a] truncate text-sm">
+              {report.name || report.testName || "Clinical report"}
+            </h3>
+            <p className="text-[11px] text-[#83938a] mt-1">{formatDate(report.date)}</p>
+          </div>
+        </div>
+        <span className="rounded-lg bg-gradient-to-r from-[#eaf7ed] to-[#f0f8f2] px-2.5 py-1 text-[10px] font-bold capitalize text-[#25854d] flex-shrink-0 whitespace-nowrap">
           {report.type || "other"}
         </span>
       </div>
-      <h3 className="mt-5 font-bold text-[#1b3c2a]">
-        {report.name || report.testName || "Clinical report"}
-      </h3>
-      <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#788a80]">
+      
+      <p className="line-clamp-2 text-xs leading-5 text-[#788a80] mb-4">
         {report.description || "Clinical document from your health record."}
       </p>
-      {report.ocrStatus && (
-        <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-[#819b89]">
-          OCR {report.ocrStatus}
-        </p>
-      )}
-      <div className="mt-5 flex items-center justify-between border-t border-[#edf3ee] pt-4 text-xs text-[#83938a]">
-        <span>{formatDate(report.date)}</span>
+      
+      <div className="flex items-center gap-2 mb-4">
         <span
-          className={`rounded-full px-2 py-1 font-bold ${report.status === "abnormal" ? "bg-[#f3f7e9] text-[#708438]" : "bg-[#edf8f0] text-[#25854d]"}`}
+          className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
+            report.status === "abnormal" ? "bg-[#f3f7e9] text-[#708438]" : report.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-[#edf8f0] text-[#25854d]"
+          }`}
         >
-          {report.status || "pending"}
+          {(report.status || "pending").charAt(0).toUpperCase() + (report.status || "pending").slice(1)}
         </span>
+        {report.ocrStatus && (
+          <span className="text-[10px] font-bold uppercase tracking-wide text-[#819b89] bg-[#f5fcf7] px-2 py-1 rounded-lg">
+            OCR {report.ocrStatus}
+          </span>
+        )}
       </div>
-      <div className="mt-4 flex gap-2">
+      
+      <div className="flex gap-2">
         <button
           type="button"
           onClick={() => onPreview(report)}
-          className="flex-1 rounded-xl border border-[#cfe5d5] px-3 py-2 text-xs font-bold text-[#25854d] hover:bg-[#f1f8f3]"
+          className="flex-1 rounded-lg border border-[#cfe5d5] px-3 py-2 text-xs font-bold text-[#25854d] hover:bg-[#f1f8f3] transition"
         >
-          View report
+          View
         </button>
         <button
           type="button"
           onClick={() => onDownload(report)}
           title="Download report"
-          className="flex h-9 w-10 items-center justify-center rounded-xl bg-[#25854d] text-white hover:bg-[#176b3d]"
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#25854d] to-[#176b3d] text-white hover:shadow-lg transition flex-shrink-0"
         >
           <Download size={15} />
         </button>
-        <button type="button" onClick={() => onDelete(report)} title="Delete report" className="flex h-9 w-10 items-center justify-center rounded-xl border border-red-100 text-red-500 hover:bg-red-50"><Trash2 size={15} /></button>
+        <button type="button" onClick={() => onDelete(report)} title="Delete report" className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition flex-shrink-0"><Trash2 size={15} /></button>
       </div>
     </article>
   );
@@ -435,28 +444,32 @@ export default function PatientReports() {
             <SlidersHorizontal size={19} className="text-[#75ad84]" />
           </div>
           {loading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="flex gap-4 overflow-x-auto pb-4 -mx-5 px-5 sm:-mx-6 sm:px-6">
               {[1, 2, 3].map((item) => (
                 <div
                   key={item}
-                  className="h-64 animate-pulse rounded-2xl bg-[#eef7f0]"
+                  className="h-48 w-96 flex-shrink-0 animate-pulse rounded-2xl bg-[#eef7f0]"
                 />
               ))}
             </div>
           ) : error ? (
             <ErrorState message={error} retry={load} />
           ) : filtered.length ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((report) => (
-                <ReportCard
-                  key={report._id}
-                  report={report}
-                  onPreview={setSelected}
-                  onDownload={downloadReport}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
+            <>
+              <div className="flex gap-4 overflow-x-auto pb-4 -mx-5 px-5 sm:-mx-6 sm:px-6 snap-x snap-mandatory">
+                {filtered.map((report) => (
+                  <div key={report._id} className="snap-start">
+                    <ReportCard
+                      report={report}
+                      onPreview={setSelected}
+                      onDownload={downloadReport}
+                      onDelete={handleDelete}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-center text-[#83938a] mt-2">💡 Scroll horizontally to view more reports</p>
+            </>
           ) : (
             <EmptyState />
           )}

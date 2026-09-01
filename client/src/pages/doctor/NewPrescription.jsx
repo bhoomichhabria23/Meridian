@@ -1,12 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import Layout from '../../components/common/Layout'
-import { PageSpinner } from '../../components/common/Spinner'
-import api from '../../api/axios'
-import toast from 'react-hot-toast'
-import { useAuth } from '../../context/AuthContext'
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import {
+  useParams,
+  useNavigate,
+} from "react-router-dom";
+import axios from "axios";
+import Layout from "../../components/common/Layout";
+import { PageSpinner } from "../../components/common/Spinner";
+import api from "../../api/axios";
+import toast from "react-hot-toast";
+import { useAuth } from "../../context/AuthContext";
 
-const LINKS = [{ to: '/doctor/dashboard', label: 'Dashboard', icon: '🏠' }]
+const LINKS = [
+  {
+    to: "/doctor/dashboard",
+    label: "Dashboard",
+    icon: "🏠",
+  },
+];
 
 const SEVERITY_STYLE = {
   safe:    { badge: 'badge-green',  icon: '✅', label: 'Safe' },
@@ -116,23 +130,100 @@ export default function NewPrescription() {
   }
 
   async function handleSave() {
-    if (!form.diagnosis) return toast.error('Diagnosis is required')
-    if (form.medications.some(m => !m.name)) return toast.error('All medication names are required')
-    setSaving(true)
+    if (!form.diagnosis)
+      return toast.error(
+        "Diagnosis is required"
+      );
+    if (
+      form.medications.some(
+        (m) => !m.name
+      )
+    )
+      return toast.error(
+        "All medication names are required"
+      );
+    setSaving(true);
     try {
-      await api.post('/api/prescriptions', {
-        patientId:  id,
-        diagnosis:  form.diagnosis,
-        medications: form.medications,
-        notes:      form.notes,
-        validUntil: form.validUntil || undefined,
-        interactionWarnings: interactions
-      })
-      toast.success('Prescription saved!')
-      navigate(`/doctor/patient/${id}`)
+      const token =
+        localStorage.getItem(
+          "token"
+        );
+
+      // Create prescription and run safety analysis
+      const response =
+        await axios.post(
+          "/api/safety/analyze",
+          {
+            patientId: id,
+            medications:
+              form.medications,
+            diagnosis:
+              form.diagnosis,
+            notes: form.notes,
+            validUntil:
+              form.validUntil ||
+              undefined,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+      if (
+        response.data.success
+      ) {
+        const safetyAlert =
+          response.data.data
+            .safetyAlert;
+
+        // Show safety alert result
+        if (
+          safetyAlert.status ===
+          "HIGH_RISK"
+        ) {
+          toast.error(
+            `HIGH RISK: ${safetyAlert.alerts
+              .map(
+                (a) =>
+                  a.message
+              )
+              .join("; ")}`
+          );
+          // Prescription created but with HIGH_RISK status
+          // Doctor must review
+        } else if (
+          safetyAlert.status ===
+          "WARNING"
+        ) {
+          toast(
+            `WARNING: ${safetyAlert.alerts
+              .map(
+                (a) =>
+                  a.message
+              )
+              .join("; ")}`,
+            { icon: "⚠️" }
+          );
+        } else {
+          toast.success(
+            "Prescription created - all safety checks passed!"
+          );
+        }
+
+        navigate(
+          `/doctor/patient/${id}`
+        );
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save prescription')
-    } finally { setSaving(false) }
+      toast.error(
+        err.response?.data?.message ||
+          "Failed to save prescription"
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <Layout links={LINKS}><PageSpinner /></Layout>

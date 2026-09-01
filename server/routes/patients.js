@@ -109,6 +109,34 @@ router.post('/:id/records', verifyToken, async (req, res) => {
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
+router.get('/:id/insights', verifyToken, async (req, res) => {
+  try {
+    const patient = await findPatientByIdentity(req.params.id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+    const events = await MedicalEvent.find({ patientId: patient._id }).sort({ date: -1 }).limit(50).lean();
+    const metricEvents = events.filter((event) => event.details?.metric && Number.isFinite(Number(event.details?.value)));
+    const insights = [];
+    const latestByMetric = new Map();
+    metricEvents.forEach((event) => {
+      if (!latestByMetric.has(event.details.metric)) latestByMetric.set(event.details.metric, event);
+    });
+    latestByMetric.forEach((event, metric) => {
+      insights.push({
+        id: `metric-${metric}`,
+        title: `${metric} is being tracked`,
+        description: `Your latest recorded value is ${event.details.value} ${event.details.unit || ''}. Continue monitoring this trend with your care team.`.trim(),
+        recommendation: 'Review changes over time during your next care visit.',
+      });
+    });
+    if (!insights.length && events.length) {
+      insights.push({ id: 'history-active', title: 'Clinical history is up to date', description: `${events.length} recent clinical record${events.length === 1 ? '' : 's'} available for review.` });
+    }
+    res.json(insights);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.get('/:id/prescriptions', verifyToken, async (req, res) => {
   try {
     const prescriptions = await Prescription.find({ patientId: req.params.id })

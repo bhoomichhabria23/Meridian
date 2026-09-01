@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || "/api";
+const API_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, "")}${import.meta.env.VITE_API_URL.endsWith("/api") ? "" : "/api"}`
+  : "http://localhost:5000/api";
 
 function authHeaders() {
   const token = localStorage.getItem("token") || localStorage.getItem("auth_token");

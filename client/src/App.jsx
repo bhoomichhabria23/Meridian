@@ -18,6 +18,8 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import Features from "./pages/Features";
 import HowItWorks from "./pages/HowItWorks";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
 
 /* =========================================================
    PATIENT PAGES
@@ -43,14 +45,26 @@ import PatientLabResults from "./pages/patient/LabResults";
 import DoctorDashboard from "./pages/doctor/Dashboard";
 import DoctorPatient from "./pages/doctor/PatientProfile";
 import DoctorPrescription from "./pages/doctor/NewPrescription";
+import DoctorPatientSearch from "./pages/doctor/PatientSearch";
+import DoctorPatients from "./pages/doctor/Patients";
+import DoctorAppointments from "./pages/doctor/Appointments";
+import DoctorSafetyAlerts from "./pages/doctor/SafetyAlerts";
+import DoctorAIAssistant from "./pages/doctor/AIAssistant";
+import DoctorProfile from "./pages/doctor/Profile";
 
 /* =========================================================
    RECEPTIONIST PAGES
 ========================================================= */
 
-import ReceptionDashboard from "./pages/reception/Dashboard";
+import ReceptionDashboard from "./pages/reception/ReceptionDashboardPro";
 import ReceptionBook from "./pages/reception/BookAppointment";
 import ReceptionUpload from "./pages/reception/UploadReport";
+import ReceptionPatients from "./pages/reception/Patients";
+import ReceptionAppointments from "./pages/reception/Appointments";
+import ReceptionDoctors from "./pages/reception/Doctors";
+import ReceptionSchedule from "./pages/reception/Schedule";
+import ReceptionProfile from "./pages/reception/Profile";
+import AddPatient from "./pages/reception/AddPatient";
 
 
 /* =========================================================
@@ -155,6 +169,8 @@ function AppRoutes() {
 
       <Route path="/features" element={<Features />} />
       <Route path="/how-it-works" element={<HowItWorks />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/contact" element={<Contact />} />
 
       <Route
         path="/login"
@@ -163,16 +179,7 @@ function AppRoutes() {
 
       <Route
         path="/register"
-        element={
-          user ? (
-            <Navigate
-              to={getDashboardPath(user)}
-              replace
-            />
-          ) : (
-            <RegisterPage />
-          )
-        }
+        element={<RegisterPage />}
       />
 
 
@@ -280,10 +287,37 @@ function AppRoutes() {
       />
 
       <Route
-        path="/doctor/patient/:id"
+        path="/doctor/patients"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorPatients />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/doctor/patients/:id"
         element={
           <ProtectedRoute role="doctor">
             <DoctorPatient />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/doctor/appointments"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorAppointments />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/doctor/prescriptions"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorPrescription />
           </ProtectedRoute>
         }
       />
@@ -297,16 +331,133 @@ function AppRoutes() {
         }
       />
 
+      <Route
+        path="/doctor/safety-alerts"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorSafetyAlerts />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/doctor/ai-assistant"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorAIAssistant />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/doctor/profile"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorProfile />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/doctor/search-patient"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorPatientSearch />
+          </ProtectedRoute>
+        }
+      />
+
 
       {/* =====================================================
           RECEPTIONIST
       ===================================================== */}
 
       <Route
+        path="/receptionist/dashboard"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/reception/dashboard"
         element={
           <ProtectedRoute role="receptionist">
             <ReceptionDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/patients"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionPatients />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/patients/new"
+        element={
+          <ProtectedRoute role="receptionist">
+            <AddPatient />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/patients/:id"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionPatients />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/appointments"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionAppointments />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/appointments/new"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionAppointments />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/doctors"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionDoctors />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/schedule"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionSchedule />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/profile"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionProfile />
           </ProtectedRoute>
         }
       />
@@ -322,6 +473,15 @@ function AppRoutes() {
 
       <Route
         path="/reception/upload"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionUpload />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/upload-report"
         element={
           <ProtectedRoute role="receptionist">
             <ReceptionUpload />

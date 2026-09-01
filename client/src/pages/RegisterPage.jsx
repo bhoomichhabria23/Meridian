@@ -194,6 +194,9 @@ export default function RegisterPage() {
       // =================================================
 
       setShowSuccess(true);
+      setTimeout(() => {
+        navigate("/login", { replace: true });
+      }, 1800);
     } catch (err) {
       console.error(
         "Firebase registration error:",
@@ -416,17 +419,11 @@ export default function RegisterPage() {
                   <div>
 
                     <h2 className="text-[21px] font-bold tracking-tight text-slate-800">
-
-                      MedRemind{" "}
-
-                      <span className="text-emerald-500">
-                        AI
-                      </span>
-
+                      MERIDIAN
                     </h2>
 
                     <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                      Intelligent Healthcare
+                      Clinical Intelligence
                     </p>
 
                   </div>
@@ -609,13 +606,7 @@ export default function RegisterPage() {
                   </div>
 
                   <h2 className="text-lg font-bold text-slate-800">
-
-                    MedRemind{" "}
-
-                    <span className="text-emerald-500">
-                      AI
-                    </span>
-
+                    MERIDIAN
                   </h2>
 
                 </div>
@@ -634,11 +625,11 @@ export default function RegisterPage() {
                   </div>
 
                   <h1 className="text-[31px] font-bold tracking-tight text-slate-900">
-                    Join MedRemind AI
+                    Create Your MERIDIAN Account
                   </h1>
 
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Set up your account to access smarter healthcare.
+                    Access clinical intelligence and safer care workflows.
                   </p>
 
                 </div>
@@ -652,7 +643,7 @@ export default function RegisterPage() {
                     I am registering as
                   </p>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
 
 
                     {/* PATIENT */}
@@ -660,7 +651,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setRole("patient")}
-                      className={`group relative flex items-center gap-3 rounded-2xl border p-3 text-left transition-all duration-200 ${
+                      className={`group relative flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-all duration-200 ${
                         role === "patient"
                           ? "border-emerald-400 bg-emerald-50/80 shadow-[0_8px_25px_rgba(16,185,129,0.10)]"
                           : "border-slate-200/80 bg-white/70 hover:border-emerald-200 hover:bg-white"
@@ -668,7 +659,7 @@ export default function RegisterPage() {
                     >
 
                       <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
                           role === "patient"
                             ? "bg-emerald-500 text-white"
                             : "bg-slate-100 text-slate-500"
@@ -686,7 +677,7 @@ export default function RegisterPage() {
                         </p>
 
                         <p className="text-[10px] text-slate-400">
-                          Personal healthcare
+                          Healthcare
                         </p>
 
                       </div>
@@ -703,7 +694,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setRole("doctor")}
-                      className={`group relative flex items-center gap-3 rounded-2xl border p-3 text-left transition-all duration-200 ${
+                      className={`group relative flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-all duration-200 ${
                         role === "doctor"
                           ? "border-teal-400 bg-teal-50/80 shadow-[0_8px_25px_rgba(20,184,166,0.10)]"
                           : "border-slate-200/80 bg-white/70 hover:border-teal-200 hover:bg-white"
@@ -711,7 +702,7 @@ export default function RegisterPage() {
                     >
 
                       <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
                           role === "doctor"
                             ? "bg-teal-500 text-white"
                             : "bg-slate-100 text-slate-500"
@@ -729,13 +720,55 @@ export default function RegisterPage() {
                         </p>
 
                         <p className="text-[10px] text-slate-400">
-                          Professional account
+                          Professional
                         </p>
 
                       </div>
 
                       {role === "doctor" && (
                         <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-teal-500" />
+                      )}
+
+                    </button>
+
+                    {/* RECEPTIONIST */}
+
+                    <button
+                      type="button"
+                      onClick={() => setRole("receptionist")}
+                      className={`group relative flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-all duration-200 ${
+                        role === "receptionist"
+                          ? "border-blue-400 bg-blue-50/80 shadow-[0_8px_25px_rgba(59,130,246,0.10)]"
+                          : "border-slate-200/80 bg-white/70 hover:border-blue-200 hover:bg-white"
+                      }`}
+                    >
+
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                          role === "receptionist"
+                            ? "bg-blue-500 text-white"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+
+                        <BriefcaseMedical size={18} />
+
+                      </div>
+
+                      <div>
+
+                        <p className="text-sm font-bold text-slate-800">
+                          Receptionist
+                        </p>
+
+                        <p className="text-[10px] text-slate-400">
+                          Clinic Staff
+                        </p>
+
+                      </div>
+
+                      {role === "receptionist" && (
+                        <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-blue-500" />
                       )}
 
                     </button>

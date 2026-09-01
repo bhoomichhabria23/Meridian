@@ -1,176 +1,421 @@
-import React, { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import Layout from '../../components/common/Layout'
-import { PageSpinner } from '../../components/common/Spinner'
-import api from '../../api/axios'
-import { format } from 'date-fns'
-import toast from 'react-hot-toast'
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import axios from "axios";
+import toast from "react-hot-toast";
+import Spinner from "../../components/common/Spinner";
 
-const LINKS = [
-  { to: '/doctor/dashboard', label: 'Dashboard', icon: '🏠' },
-]
-
-const TYPE_ICON = {
-  prescription: '💊', report: '📄', appointment: '📅',
-  diagnosis: '🔬', allergy: '⚠️', update: '📝'
-}
-
-export default function DoctorPatient() {
-  const { id }    = useParams()
-  const navigate  = useNavigate()
-  const [patient, setPatient]           = useState(null)
-  const [timeline, setTimeline]         = useState([])
-  const [prescriptions, setPrescriptions] = useState([])
-  const [reports, setReports]           = useState([])
-  const [tab, setTab]                   = useState('timeline')
-  const [loading, setLoading]           = useState(true)
+const PatientProfile = () => {
+  const { patientId } = useParams();
+  const [loading, setLoading] =
+    useState(true);
+  const [patient, setPatient] =
+    useState(null);
+  const [timeline, setTimeline] =
+    useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [tab, setTab] = useState(
+    "timeline"
+  );
 
   useEffect(() => {
-    Promise.all([
-      api.get(`/api/patients/${id}`),
-      api.get(`/api/patients/${id}/timeline`),
-      api.get(`/api/patients/${id}/prescriptions`),
-      api.get(`/api/patients/${id}/reports`),
-    ]).then(([p, t, rx, r]) => {
-      setPatient(p.data)
-      setTimeline(t.data)
-      setPrescriptions(rx.data)
-      setReports(r.data)
-    }).catch(() => toast.error('Could not load patient profile')).finally(() => setLoading(false))
-  }, [id])
+    fetchPatientData();
+  }, [patientId]);
 
-  if (loading) return <Layout links={LINKS}><PageSpinner /></Layout>
-  if (!patient) return <Layout links={LINKS}><p className="text-gray-500">Patient not found</p></Layout>
+  const fetchPatientData = async () => {
+    try {
+      setLoading(true);
+      const token =
+        localStorage.getItem("token");
+
+      // Fetch patient profile
+      const patientResponse =
+        await axios.get(
+          `/api/doctors/patients/${patientId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+      setPatient(
+        patientResponse.data.data
+      );
+
+      // Fetch timeline
+      const timelineResponse =
+        await axios.get(
+          `/api/doctors/patients/${patientId}/timeline`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+      setTimeline(
+        timelineResponse.data.data
+          .events
+      );
+
+      // Fetch safety alerts
+      const alertsResponse =
+        await axios.get(
+          `/api/safety/patient/${patientId}/alerts`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+      setAlerts(
+        alertsResponse.data.data || []
+      );
+    } catch (error) {
+      console.error(
+        "Error fetching patient:",
+        error
+      );
+      toast.error(
+        "Failed to load patient profile"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <Spinner />;
+  }
+
+  if (!patient) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-gray-600">
+          Patient not found
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <Layout links={LINKS}>
-      {/* Back */}
-      <button onClick={() => navigate('/doctor/dashboard')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-green-700 mb-6 transition-colors">
-        ← Back to dashboard
-      </button>
-
-      {/* Patient header */}
-      <div className="card mb-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-green-100 flex items-center justify-center text-2xl font-bold text-green-700">
-              {patient.userId?.name?.[0]}
-            </div>
-            <div>
-              <h1 className="font-display text-2xl font-light text-gray-900">{patient.userId?.name}</h1>
-              <p className="text-sm text-gray-500">{patient.userId?.email}</p>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="badge-green">{patient.bloodGroup}</span>
-                <span className="badge-gray capitalize">{patient.gender}</span>
-                {patient.dateOfBirth && (
-                  <span className="badge-gray">{format(new Date(patient.dateOfBirth), 'dd MMM yyyy')}</span>
-                )}
-              </div>
-            </div>
+    <div className="p-8">
+      {/* Patient Header */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          {patient.name}
+        </h1>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-sm text-gray-600">
+              Age
+            </p>
+            <p className="text-lg font-medium text-gray-900">
+              {patient.age || "N/A"}
+            </p>
           </div>
-          <button
-            onClick={() => navigate(`/doctor/prescription/${id}`)}
-            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(16,128,87,0.2)] transition hover:-translate-y-0.5 hover:from-emerald-700 hover:to-teal-700"
-          >
-            <span className="text-lg">+</span> New prescription
-          </button>
+          <div>
+            <p className="text-sm text-gray-600">
+              Gender
+            </p>
+            <p className="text-lg font-medium text-gray-900">
+              {patient.gender || "N/A"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">
+              Blood Type
+            </p>
+            <p className="text-lg font-medium text-gray-900">
+              {patient.bloodGroup || "N/A"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">
+              Contact
+            </p>
+            <p className="text-lg font-medium text-gray-900">
+              {patient.phone}
+            </p>
+          </div>
         </div>
-
-        {/* Conditions & allergies */}
-        {(patient.conditions?.length > 0 || patient.allergies?.length > 0) && (
-          <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-4">
-            {patient.conditions?.map((c, i) => (
-              <span key={i} className="badge-yellow">🔬 {c.name}</span>
-            ))}
-            {patient.allergies?.map((a, i) => (
-              <span key={i} className="badge-red">⚠️ {a}</span>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-        {['timeline','prescriptions','reports'].map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
-              tab === t ? 'bg-white text-gray-800 shadow-card' : 'text-gray-500 hover:text-gray-700'
-            }`}>
-            {t}
-          </button>
-        ))}
+      <div className="flex space-x-4 mb-6">
+        <button
+          onClick={() =>
+            setTab("timeline")
+          }
+          className={`px-6 py-2 rounded-lg font-medium ${
+            tab === "timeline"
+              ? "bg-indigo-600 text-white"
+              : "bg-gray-200 text-gray-800"
+          }`}
+        >
+          Medical Timeline
+        </button>
+        <button
+          onClick={() =>
+            setTab("alerts")
+          }
+          className={`px-6 py-2 rounded-lg font-medium ${
+            tab === "alerts"
+              ? "bg-indigo-600 text-white"
+              : "bg-gray-200 text-gray-800"
+          }`}
+        >
+          Safety Alerts (
+          {alerts.length})
+        </button>
       </div>
 
-      {/* Timeline tab */}
-      {tab === 'timeline' && (
-        <div className="space-y-3">
-          {timeline.length === 0
-            ? <div className="card text-center text-gray-400 py-10">No events yet</div>
-            : timeline.map(e => (
-                <div key={e._id} className="card flex items-start gap-4 py-4">
-                  <span className="text-xl">{TYPE_ICON[e.type] || '📝'}</span>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-800">{e.title}</p>
-                    {e.description && <p className="text-xs text-gray-500 mt-0.5">{e.description}</p>}
-                  </div>
-                  <span className="text-xs text-gray-400">{format(new Date(e.date), 'dd MMM yyyy')}</span>
+      {/* Timeline Tab */}
+      {tab === "timeline" && (
+        <div className="space-y-4">
+          {timeline.length > 0 ? (
+            timeline.map((event) => (
+              <div
+                key={event._id}
+                className="bg-white rounded-lg shadow-md p-6 border-l-4 border-indigo-500"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-bold text-gray-900">
+                    {event.type
+                      .replace("_", " ")
+                      .toUpperCase()}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {new Date(
+                      event.date
+                    ).toLocaleDateString()}
+                  </p>
                 </div>
-              ))
-          }
+                <div className="text-gray-700">
+                  {event.type ===
+                    "diagnosis" && (
+                    <>
+                      <p>
+                        <strong>
+                          Condition:
+                        </strong>{" "}
+                        {event.data.condition}
+                      </p>
+                      <p>
+                        <strong>
+                          Status:
+                        </strong>{" "}
+                        {event.data.status}
+                      </p>
+                      {event.data.notes && (
+                        <p>
+                          <strong>
+                            Notes:
+                          </strong>{" "}
+                          {event.data.notes}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {event.type ===
+                    "medication" && (
+                    <>
+                      <p>
+                        <strong>
+                          Medication:
+                        </strong>{" "}
+                        {event.data.name}
+                      </p>
+                      <p>
+                        <strong>
+                          Dosage:
+                        </strong>{" "}
+                        {
+                          event.data
+                            .dosage
+                        }
+                      </p>
+                      <p>
+                        <strong>
+                          Status:
+                        </strong>{" "}
+                        {event.data.status}
+                      </p>
+                    </>
+                  )}
+                  {event.type ===
+                    "allergy" && (
+                    <>
+                      <p>
+                        <strong>
+                          Allergen:
+                        </strong>{" "}
+                        {event.data.allergen}
+                      </p>
+                      <p>
+                        <strong>
+                          Severity:
+                        </strong>{" "}
+                        <span
+                          className={
+                            event.data
+                              .severity ===
+                            "life-threatening"
+                              ? "text-red-600 font-bold"
+                              : "text-gray-600"
+                          }
+                        >
+                          {
+                            event.data
+                              .severity
+                          }
+                        </span>
+                      </p>
+                      <p>
+                        <strong>
+                          Reaction:
+                        </strong>{" "}
+                        {event.data.reaction}
+                      </p>
+                    </>
+                  )}
+                  {event.type ===
+                    "lab_result" && (
+                    <>
+                      <p>
+                        <strong>
+                          Test:
+                        </strong>{" "}
+                        {event.data.testName}
+                      </p>
+                      <p>
+                        <strong>
+                          Date:
+                        </strong>{" "}
+                        {new Date(
+                          event.data
+                            .testDate
+                        ).toLocaleDateString()}
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-600">
+              No medical events recorded
+            </p>
+          )}
         </div>
       )}
 
-      {/* Prescriptions tab */}
-      {tab === 'prescriptions' && (
-        <div className="space-y-3">
-          {prescriptions.length === 0
-            ? <div className="card text-center text-gray-400 py-10">No prescriptions yet</div>
-            : prescriptions.map(rx => (
-                <div key={rx._id} className="card">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="font-semibold text-gray-800">{rx.diagnosis || 'General'}</p>
-                      <p className="text-xs text-gray-400">{format(new Date(rx.createdAt), 'dd MMM yyyy')}</p>
-                    </div>
-                    {rx.validUntil && (
-                      <span className="badge-yellow text-xs">Until {format(new Date(rx.validUntil), 'dd MMM')}</span>
-                    )}
+      {/* Alerts Tab */}
+      {tab === "alerts" && (
+        <div className="space-y-4">
+          {alerts.length > 0 ? (
+            alerts.map((alert) => {
+              const bgColor =
+                alert.status ===
+                "HIGH_RISK"
+                  ? "bg-red-50 border-l-4 border-red-500"
+                  : alert.status ===
+                      "WARNING"
+                    ? "bg-yellow-50 border-l-4 border-yellow-500"
+                    : "bg-green-50 border-l-4 border-green-500";
+
+              return (
+                <div
+                  key={alert._id}
+                  className={`${bgColor} rounded-lg p-6`}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="font-bold text-gray-900">
+                      {alert.status}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {new Date(
+                        alert.createdAt
+                      ).toLocaleDateString()}
+                    </p>
                   </div>
-                  <div className="space-y-1">
-                    {rx.medications?.map((m, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
-                        <span className="text-green-500">•</span>
-                        <span className="font-medium">{m.name}</span>
-                        <span className="text-gray-400">{m.dose} · {m.frequency} · {m.duration}</span>
+
+                  {alert.alerts.map(
+                    (
+                      singleAlert,
+                      idx
+                    ) => (
+                      <div
+                        key={idx}
+                        className="mb-4 pb-4 border-b last:border-b-0"
+                      >
+                        <p className="font-medium text-gray-900 mb-2">
+                          {
+                            singleAlert.type
+                          }
+                        </p>
+                        <p className="text-gray-700 mb-2">
+                          {
+                            singleAlert.message
+                          }
+                        </p>
+                        {singleAlert.evidence && (
+                          <p className="text-sm text-gray-600 mb-2">
+                            <strong>
+                              Evidence:
+                            </strong>{" "}
+                            {
+                              singleAlert.evidence
+                            }
+                          </p>
+                        )}
+                        {singleAlert.recommendation && (
+                          <p className="text-sm text-indigo-700 font-medium">
+                            <strong>
+                              Recommendation:
+                            </strong>{" "}
+                            {
+                              singleAlert.recommendation
+                            }
+                          </p>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))
-          }
-        </div>
-      )}
+                    )
+                  )}
 
-      {/* Reports tab */}
-      {tab === 'reports' && (
-        <div className="grid grid-cols-2 gap-4">
-          {reports.length === 0
-            ? <div className="card col-span-2 text-center text-gray-400 py-10">No reports uploaded</div>
-            : reports.map(r => (
-                <div key={r._id} className="card hover:shadow-soft transition-all">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">📄</span>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">{r.title}</p>
-                      <p className="text-xs text-gray-400 capitalize">{r.type?.replace('_',' ')}</p>
+                  {alert.reviewed && (
+                    <div className="mt-4 p-3 bg-gray-100 rounded">
+                      <p className="text-sm text-gray-600">
+                        <strong>
+                          Review Status:
+                        </strong>{" "}
+                        Reviewed by doctor
+                      </p>
+                      {alert.reviewNotes && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          <strong>
+                            Notes:
+                          </strong>{" "}
+                          {alert.reviewNotes}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                  <p className="text-xs text-gray-400">{format(new Date(r.uploadedAt), 'dd MMM yyyy')}</p>
+                  )}
                 </div>
-              ))
-          }
+              );
+            })
+          ) : (
+            <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-6">
+              <p className="text-green-700 font-medium">
+                ✓ No safety alerts
+              </p>
+            </div>
+          )}
         </div>
       )}
-    </Layout>
-  )
-}
+    </div>
+  );
+};
+
+export default PatientProfile;

@@ -6,7 +6,15 @@ import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 import { Empty, PageLoader, StatCard, StatusBadge } from '../../components/common/UI'
 
-const LINKS = [{ to: '/doctor/dashboard', label: 'Dashboard', icon: '🏥' }]
+const LINKS = [
+  { to: '/doctor/dashboard', label: 'Dashboard', icon: '🏥' },
+  { to: '/doctor/patients', label: 'Patients', icon: '👥' },
+  { to: '/doctor/appointments', label: 'Appointments', icon: '📅' },
+  { to: '/doctor/prescriptions', label: 'Prescriptions', icon: '💊' },
+  { to: '/doctor/safety-alerts', label: 'Safety Alerts', icon: '⚠️' },
+  { to: '/doctor/ai-assistant', label: 'AI Assistant', icon: '🤖' },
+  { to: '/doctor/profile', label: 'Profile', icon: '👤' },
+]
 
 export default function DoctorDashboard() {
   const navigate = useNavigate()

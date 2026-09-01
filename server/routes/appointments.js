@@ -6,6 +6,7 @@ const Patient     = require('../models/Patient');
 const Doctor      = require('../models/Doctor');
 const { createEvent } = require('../utils/medicalEvent');
 const { sendBookingConfirmation, sendCancellationNotice } = require('../utils/emailService');
+const Notification = require('../models/Notification');
 
 router.post('/', verifyToken, async (req, res) => {
   try {
@@ -79,6 +80,16 @@ router.put('/:id', verifyToken, requireRole('doctor','receptionist','admin'), as
     if (!appointment) return res.status(404).json({ message: 'Not found' });
     Object.assign(appointment, req.body);
     await appointment.save();
+    const patient = await Patient.findById(appointment.patientId).populate('userId');
+    if (patient?.userId?._id && req.body.status) {
+      const labels = { confirmed: 'approved', cancelled: 'rejected', completed: 'completed', pending: 'set to pending' };
+      await Notification.create({
+        userId: patient.userId._id,
+        type: req.body.status === 'cancelled' ? 'general' : 'booking',
+        title: `Appointment ${labels[req.body.status] || 'updated'}`,
+        body: `Your appointment on ${new Date(appointment.date).toLocaleDateString()} at ${appointment.timeSlot} was ${labels[req.body.status] || 'updated'}.`,
+      });
+    }
     if (req.body.status === 'cancelled') {
       await createEvent({
         patientId: appointment.patientId,

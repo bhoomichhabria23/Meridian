@@ -19,6 +19,9 @@ app.use(
 
 app.use(express.json());
 
+const authRoutes = require("./routes/auth");
+app.use("/api/auth", authRoutes);
+
 const medicationRoutes = require("./routes/medicationRoutes");
 
 app.use(
@@ -68,6 +71,18 @@ app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/drugs", drugRoutes);
 app.use("/api/auth/firebase-session", firebaseSessionRoutes);
 app.use("/api/notifications", require("./routes/notifications"));
+
+// New routes
+const doctorRoutes2 = require("./routes/doctorRoutes");
+const medicalRecordsRoutes = require("./routes/medicalRecords");
+const safetyRoutes = require("./routes/safety");
+const receptionistRoutes = require("./routes/receptionist");
+
+app.use("/api/doctors", doctorRoutes2);
+app.use("/api/medical-records", medicalRecordsRoutes);
+app.use("/api/safety", safetyRoutes);
+app.use("/api/receptionist", receptionistRoutes);
+
 /*
 =========================================================
 MONGODB

@@ -74,7 +74,7 @@ export default function Home() {
               </Link>
 
               <Link
-                to="/login"
+                to="/register"
                 className="px-6 py-2.5 rounded-lg bg-green-700 text-white text-sm font-semibold shadow-lg shadow-green-700/20 hover:bg-green-800 transition"
               >
                 Get Started
@@ -142,7 +142,7 @@ export default function Home() {
               <div className="flex flex-wrap gap-4 mt-9">
 
                 <Link
-                  to="/login"
+                  to="/register"
                   className="px-7 py-3.5 rounded-xl bg-green-700 text-white font-semibold shadow-xl shadow-green-700/20 hover:bg-green-800 hover:-translate-y-0.5 transition"
                 >
                   Get Started
