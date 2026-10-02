@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import Layout from '../../components/common/Layout'
-import api from '../../api/axios'
-import { useAuth } from '../../context/AuthContext'
-import { Empty, PageLoader, StatusBadge } from '../../components/common/UI'
-import { Search, FileText } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FileText, Search, Stethoscope, UserRound } from 'lucide-react';
+import Layout from '../../components/common/Layout';
+import api from '../../api/axios';
+import { PageLoader } from '../../components/common/UI';
 
 const LINKS = [
   { to: '/doctor/dashboard', label: 'Dashboard', icon: '🏥' },
@@ -14,118 +13,123 @@ const LINKS = [
   { to: '/doctor/safety-alerts', label: 'Safety Alerts', icon: '⚠️' },
   { to: '/doctor/ai-assistant', label: 'AI Assistant', icon: '🤖' },
   { to: '/doctor/profile', label: 'Profile', icon: '👤' },
-]
+];
 
 export default function DoctorPatients() {
-  const navigate = useNavigate()
-  const { user } = useAuth()
-  const [patients, setPatients] = useState([])
-  const [filteredPatients, setFilteredPatients] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
+  const navigate = useNavigate();
+  const [patients, setPatients] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const load = async () => {
       try {
-        setLoading(true)
-        const res = await api.get('/api/patients')
-        setPatients(res.data)
-        setFilteredPatients(res.data)
+        setLoading(true);
+        const res = await api.get('/api/doctors/patients');
+        const items = Array.isArray(res.data) ? res.data : res.data?.patients || res.data?.data || [];
+        setPatients(items);
       } catch (err) {
-        setError(err?.response?.data?.message || 'Failed to load patients')
+        setError(err?.response?.data?.message || 'Failed to load patients');
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
-    load()
-  }, [])
+    };
 
-  useEffect(() => {
-    if (searchTerm.trim()) {
-      const filtered = patients.filter(
-        (p) =>
-          p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.phone?.includes(searchTerm)
-      )
-      setFilteredPatients(filtered)
-    } else {
-      setFilteredPatients(patients)
-    }
-  }, [searchTerm, patients])
+    load();
+  }, []);
 
-  if (loading) return <Layout links={LINKS}><PageLoader /></Layout>
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return patients;
+
+    return patients.filter((patient) => {
+      const fullText = [
+        patient.name,
+        patient.userId?.name,
+        patient.email,
+        patient.userId?.email,
+        patient.phone,
+        patient.userId?.phone,
+        patient.patientCode,
+        patient.gender,
+        patient.bloodGroup,
+        patient.address,
+      ].join(' ').toLowerCase();
+      return fullText.includes(query);
+    });
+  }, [patients, search]);
+
+  if (loading) return <Layout links={LINKS}><PageLoader /></Layout>;
 
   return (
     <Layout links={LINKS}>
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Patients</h1>
-          <p className="text-slate-600">Manage and view patient information</p>
-        </div>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
+      <div className="space-y-6">
+        <section className="flex flex-col gap-4 rounded-[28px] border border-[#d7efe0] bg-gradient-to-r from-[#0f5132] via-[#1a7a4a] to-[#19b36d] p-6 text-white shadow-[0_18px_45px_rgba(26,122,74,0.2)] md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100">Patient list</p>
+            <h1 className="mt-2 text-3xl font-black md:text-4xl">Assigned care team</h1>
           </div>
-        )}
-
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-4 top-3 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search patients by name, email, or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            />
+          <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-emerald-50">
+            {patients.length} active patients
           </div>
-        </div>
+        </section>
 
-        {/* Patients Table */}
-        {filteredPatients.length > 0 ? (
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Name</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Email</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Phone</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Status</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredPatients.map((patient) => (
-                  <tr key={patient._id} className="hover:bg-slate-50 transition">
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900">{patient.name}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{patient.email}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{patient.phone}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                        Active
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <button
-                        onClick={() => navigate(`/doctor/patients/${patient._id}`)}
-                        className="text-green-700 hover:text-green-800 font-medium"
-                      >
-                        View Profile
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">{error}</div>}
+
+        <section className="rounded-3xl border border-[#dfeee3] bg-white p-5 shadow-[0_10px_30px_rgba(17,95,57,0.05)] md:p-6">
+          <div className="relative max-w-xl">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6a7d71]" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search patient by name, email, phone, or code..." className="h-12 w-full rounded-2xl border border-[#dfeee3] bg-[#f9fcfa] pl-10 pr-4 text-sm text-[#183a28] outline-none transition focus:border-[#1aa65c]" />
+          </div>
+        </section>
+
+        {filtered.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-[#dfeee3] bg-white p-8 text-center shadow-[0_10px_30px_rgba(17,95,57,0.05)]">
+            <UserRound className="mx-auto h-12 w-12 text-[#7aa087]" />
+            <p className="mt-3 text-xl font-black text-[#183a28]">No patients found</p>
+            <p className="mt-2 text-sm text-[#6a7d71]">Try adjusting your search or check if the patient record exists.</p>
           </div>
         ) : (
-          <Empty message="No patients found" />
+          <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((patient) => (
+              <div key={patient._id} className="rounded-3xl border border-[#dfeee3] bg-white p-5 shadow-[0_10px_30px_rgba(17,95,57,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(24,58,40,0.08)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eaf7ed] text-[#159447]">
+                      <UserRound className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-[#183a28]">{patient.userId?.name || patient.name || 'Registered patient'}</h2>
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#6a7d71]">{patient.patientCode || 'Patient record'}</p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-[#eaf7ed] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#159447]">Active</span>
+                </div>
+
+                <div className="mt-5 space-y-2 text-sm text-[#64756b]">
+                  <p><span className="font-bold text-[#183a28]">Email:</span> {patient.userId?.email || patient.email || 'Not provided'}</p>
+                  <p><span className="font-bold text-[#183a28]">Phone:</span> {patient.userId?.phone || patient.phone || 'Not provided'}</p>
+                  <p><span className="font-bold text-[#183a28]">Age:</span> {patient.age ?? 'N/A'}</p>
+                  <p><span className="font-bold text-[#183a28]">Blood:</span> {patient.bloodGroup || 'N/A'}</p>
+                </div>
+
+                <div className="mt-5 space-y-3 border-t border-[#edf3ef] pt-4">
+                  <div className="inline-flex items-center gap-2 text-sm font-bold text-[#159447]">
+                    <FileText className="h-4 w-4" />
+                    {patient.conditions?.length || 0} conditions
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button onClick={() => navigate(`/doctor/prescription/new?patientId=${patient._id}`)} className="flex-1 rounded-xl bg-[#159447] px-3 py-2 text-xs font-bold text-white">Create prescription</button>
+                    <button onClick={() => navigate(`/doctor/patients/${patient._id}`)} className="rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 py-2 text-xs font-bold text-[#183a28]">Open profile</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </section>
         )}
       </div>
     </Layout>
-  )
+  );
 }

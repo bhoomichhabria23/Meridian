@@ -5,19 +5,43 @@ const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
 
+const Doctor = require("./models/Doctor");
 const userRoutes = require("./routes/users");
 
 const app = express();
 app.use(cookieParser());
 
+const allowedOrigins = [process.env.CLIENT_URL].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     credentials: true,
   })
 );
 
 app.use(express.json());
+
+// ========== PERFORMANCE MONITORING MIDDLEWARE ==========
+app.use((req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    if (duration > 500) {
+      console.log(`[SLOW] ${req.method} ${req.path} - ${duration}ms - Status: ${res.statusCode}`);
+    }
+  });
+  
+  next();
+});
 
 const authRoutes = require("./routes/auth");
 app.use("/api/auth", authRoutes);
@@ -91,7 +115,16 @@ MONGODB
 
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => {
+  .then(async () => {
+    const doctorIndexes = await Doctor.collection.indexes();
+    const licenseIndex = doctorIndexes.find((index) => index.name === "licenseNo_1");
+
+    if (licenseIndex && !licenseIndex.sparse) {
+      await Doctor.collection.dropIndex("licenseNo_1");
+      await Doctor.syncIndexes();
+      console.log("Rebuilt doctor license index as sparse");
+    }
+
     console.log("MongoDB connected");
   })
   .catch((error) => {

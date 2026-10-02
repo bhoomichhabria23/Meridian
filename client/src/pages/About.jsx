@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Heart,
   Shield,
@@ -9,33 +9,38 @@ import {
   Award,
   CheckCircle,
   ArrowRight,
+  TrendingUp,
+  AlertCircle,
+  Database,
+  Clock,
 } from "lucide-react";
 
 export default function About() {
+  const location = useLocation();
   const values = [
     {
-      icon: Heart,
-      title: "Patient Safety First",
+      icon: Brain,
+      title: "Longitudinal Analysis",
       description:
-        "Every decision prioritizes patient safety and clinical outcomes through evidence-based insights.",
+        "Transforms fragmented patient records into a structured time-ordered clinical timeline for comprehensive historical insights.",
     },
     {
       icon: Shield,
-      title: "Data Security",
+      title: "Drug Safety Intelligence",
       description:
-        "HIPAA-compliant infrastructure with end-to-end encryption protecting sensitive healthcare data.",
-    },
-    {
-      icon: Brain,
-      title: "Clinical Intelligence",
-      description:
-        "Intelligent algorithms that learn from patterns to support better clinical decision-making.",
+        "Evaluates prescription risks using medication history, laboratory trends, allergies, and comorbidities to prevent adverse interactions.",
     },
     {
       icon: Zap,
-      title: "Real-Time Insights",
+      title: "Real-Time Decision Support",
       description:
-        "Instant alerts and recommendations when it matters most, during patient care delivery.",
+        "Delivers drug interaction alerts, duplicate test detection, and overdue test reminders at the point of care.",
+    },
+    {
+      icon: Heart,
+      title: "Chronic Disease Monitoring",
+      description:
+        "Continuous lab trend analysis and lab anomaly detection for early disease progression identification.",
     },
   ];
 
@@ -68,20 +73,20 @@ export default function About() {
 
   const achievements = [
     {
-      number: "500K+",
-      label: "Prescription Safety Checks",
+      number: "7",
+      label: "Core Safety Capabilities",
     },
     {
-      number: "50+",
-      label: "Healthcare Institutions",
+      number: "OCR",
+      label: "PDF Report Processing",
     },
     {
-      number: "99.9%",
-      label: "System Uptime",
+      number: "Real-Time",
+      label: "Risk Decision Engine",
     },
     {
-      number: "10M+",
-      label: "Patient Records Analyzed",
+      number: "Multi-Layer",
+      label: "Clinical Analysis",
     },
   ];
 
@@ -108,28 +113,31 @@ export default function About() {
             <div className="hidden md:flex items-center gap-9">
               <Link
                 to="/"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className={`text-sm font-semibold transition ${location.pathname === "/" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
               >
                 Home
               </Link>
               <Link
                 to="/features"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className={`text-sm font-semibold transition ${location.pathname === "/features" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
               >
                 Features
               </Link>
               <Link
                 to="/how-it-works"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className={`text-sm font-semibold transition ${location.pathname === "/how-it-works" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
               >
                 How It Works
               </Link>
-              <Link to="/about" className="text-sm font-semibold text-green-700">
+              <Link 
+                to="/about" 
+                className={`text-sm font-semibold transition ${location.pathname === "/about" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
+              >
                 About
               </Link>
               <Link
                 to="/contact"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className={`text-sm font-semibold transition ${location.pathname === "/contact" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
               >
                 Contact
               </Link>
@@ -164,13 +172,14 @@ export default function About() {
               About MERIDIAN
             </p>
             <h1 className="text-5xl sm:text-6xl font-bold leading-[1.1] text-slate-950 mb-6">
-              Transforming Healthcare with Clinical Intelligence
+              Clinical Decision Engine for Prescription Safety
             </h1>
             <p className="text-xl text-slate-600 leading-8">
-              MERIDIAN was founded on a simple belief: clinicians should have
-              intelligent systems that help them make safer, evidence-based
-              decisions every single day. We're building the future of clinical
-              decision support.
+              MERIDIAN is a longitudinal clinical decision engine designed to solve
+              fragmented patient data challenges. In many healthcare settings, patient
+              information scattered across paper files and multiple providers leads to
+              unsafe prescriptions and poor continuity of care. We transform this chaos
+              into actionable clinical intelligence.
             </p>
           </div>
         </div>
@@ -188,20 +197,20 @@ export default function About() {
               </span>
             </div>
             <h2 className="text-4xl font-bold text-slate-950 mb-6">
-              Safety Through Intelligence
+              Solving Healthcare's Data Fragmentation
             </h2>
             <p className="text-lg text-slate-600 leading-8 mb-6">
-              We empower healthcare providers with real-time clinical
-              intelligence that prevents medication errors, identifies risks
-              before they become problems, and supports evidence-based
-              decision-making.
+              We organize patient history into a structured longitudinal timeline
+              and apply intelligent analysis that detects drug interactions, tracks
+              lab trends, identifies duplicate tests, and flags risks before they
+              impact patient safety.
             </p>
             <ul className="space-y-4">
               {[
-                "Prevent prescription-related adverse events",
-                "Reduce clinical decision-making time",
-                "Improve patient outcomes and safety",
-                "Support evidence-based medicine",
+                "Prevent drug-drug and drug-disease interactions",
+                "Reduce unnecessary diagnostic testing costs",
+                "Enable chronic disease monitoring with lab trends",
+                "Provide predictive risk assessment at point of care",
               ].map((item, idx) => (
                 <li key={idx} className="flex items-start gap-3">
                   <CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-0.5" />
@@ -220,19 +229,20 @@ export default function About() {
               </span>
             </div>
             <h2 className="text-4xl font-bold text-slate-950 mb-6">
-              Every Clinician Has a Guardian
+              Longitudinal Intelligence for Every Clinician
             </h2>
             <p className="text-lg text-slate-600 leading-8 mb-6">
-              We envision a world where every healthcare provider has access to
-              intelligent, real-time clinical support that catches risks early,
-              supports better decisions, and ultimately saves lives.
+              We envision healthcare systems where fragmented patient records are
+              a problem of the past. Every clinician, everywhere, has access to
+              intelligent analysis that reveals patterns, prevents errors, and
+              enables safer prescribing.
             </p>
             <ul className="space-y-4">
               {[
-                "Accessible to all healthcare settings",
-                "Trusted by clinicians worldwide",
-                "Constantly learning and improving",
-                "Setting the standard for clinical safety",
+                "Decision-aware longitudinal framework for all data",
+                "Automated red-flag risk summaries for rapid assessment",
+                "Scalable architecture supporting diverse healthcare settings",
+                "Accessible intelligence that transforms point-of-care decisions",
               ].map((item, idx) => (
                 <li key={idx} className="flex items-start gap-3">
                   <Award className="w-6 h-6 text-teal-600 shrink-0 mt-0.5" />
@@ -244,30 +254,134 @@ export default function About() {
         </div>
       </section>
 
-      {/* VALUES SECTION */}
+      {/* PROBLEM vs SOLUTION */}
+      <section className="bg-white py-20">
+        <div className="max-w-[1400px] mx-auto px-8 lg:px-16">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-slate-950 mb-4">
+              The Challenge We Solve
+            </h2>
+            <p className="text-lg text-slate-600">
+              Fragmented healthcare data creates preventable risks
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12">
+            {/* PROBLEM */}
+            <div className="bg-red-50 border border-red-100 rounded-3xl p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-red-900">Traditional Systems</h3>
+              </div>
+              <ul className="space-y-4">
+                {[
+                  "Patient data scattered across paper and multiple systems",
+                  "No visibility into medication history and past allergies",
+                  "Missing context for clinical decision-making",
+                  "High risk of drug interactions and adverse events",
+                  "Duplicate and unnecessary diagnostic testing",
+                  "Delayed detection of disease progression",
+                  "No predictive alerts for chronic disease management",
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-red-200 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-red-700 text-xs font-bold">✕</span>
+                    </div>
+                    <span className="text-red-800 font-medium">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* SOLUTION */}
+            <div className="bg-green-50 border border-green-100 rounded-3xl p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-green-900">MERIDIAN</h3>
+              </div>
+              <ul className="space-y-4">
+                {[
+                  "Unified longitudinal patient timeline across all records",
+                  "Complete medication history and allergy tracking",
+                  "Rich clinical context for every decision point",
+                  "Intelligent drug interaction and contraindication checking",
+                  "Automatic duplicate test identification and prevention",
+                  "Lab trend analysis for early risk detection",
+                  "Predictive alerts and red-flag risk summaries",
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-green-200 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-green-700 text-xs font-bold">✓</span>
+                    </div>
+                    <span className="text-green-800 font-medium">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* TECHNICAL APPROACH */}
       <section className="bg-slate-50 py-20">
         <div className="max-w-[1400px] mx-auto px-8 lg:px-16">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-slate-950 mb-4">
-              Core Values Driving Our Work
+              How MERIDIAN Works
             </h2>
             <p className="text-lg text-slate-600">
-              These principles guide every decision we make
+              Multi-layer clinical analysis architecture
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {values.map((value, idx) => {
-              const Icon = value.icon;
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              {
+                icon: Database,
+                step: "1",
+                title: "Data Integration",
+                desc: "Consolidated patient records from multiple sources into MongoDB with structured schemas",
+              },
+              {
+                icon: Brain,
+                step: "2",
+                title: "OCR Processing",
+                desc: "Tesseract OCR extracts lab results from PDF reports and images into machine-readable format",
+              },
+              {
+                icon: TrendingUp,
+                step: "3",
+                title: "Longitudinal Timeline",
+                desc: "Time-ordered organization of diagnoses, medications, and lab results for pattern analysis",
+              },
+              {
+                icon: AlertCircle,
+                step: "4",
+                title: "Decision Engine",
+                desc: "Python-based analysis evaluates drug interactions, lab trends, duplicate tests, and risks",
+              },
+            ].map((item, idx) => {
+              const Icon = item.icon;
               return (
-                <div key={idx} className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition">
-                  <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center mb-4">
-                    <Icon className="w-7 h-7 text-green-700" />
+                <div key={idx} className="bg-white rounded-2xl p-6 border border-green-100">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-green-700 flex items-center justify-center shrink-0">
+                      <Icon className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-sm font-bold text-green-700 bg-green-50 px-3 py-1 rounded-full">
+                      Step {item.step}
+                    </div>
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-3">
-                    {value.title}
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">
+                    {item.title}
                   </h3>
-                  <p className="text-slate-600 leading-7">{value.description}</p>
+                  <p className="text-sm text-slate-600 leading-6">
+                    {item.desc}
+                  </p>
                 </div>
               );
             })}
@@ -275,147 +389,160 @@ export default function About() {
         </div>
       </section>
 
-      {/* ACHIEVEMENTS */}
-      <section className="max-w-[1400px] mx-auto px-8 lg:px-16 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-slate-950 mb-4">
-            Trusted by Healthcare Leaders
-          </h2>
-          <p className="text-lg text-slate-600">
-            Making a measurable impact on patient safety
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {achievements.map((achievement, idx) => (
-            <div
-              key={idx}
-              className="text-center p-8 rounded-2xl border border-green-100 hover:bg-green-50 transition"
-            >
-              <div className="text-4xl font-bold text-green-700 mb-2">
-                {achievement.number}
-              </div>
-              <div className="text-slate-600 font-medium">
-                {achievement.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* TEAM SECTION */}
-      <section className="bg-slate-50 py-20">
+      {/* KEY CAPABILITIES */}
+      <section className="bg-white py-20">
         <div className="max-w-[1400px] mx-auto px-8 lg:px-16">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-slate-950 mb-4">
-              Meet Our Leadership Team
+              Core Capabilities
             </h2>
             <p className="text-lg text-slate-600">
-              Experts dedicated to advancing clinical intelligence
+              Seven critical features for safer clinical practice
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {[
+              {
+                num: "01",
+                title: "Longitudinal Timeline",
+                desc: "Structured time-ordered clinical history of diagnoses, medications, and lab results",
+              },
+              {
+                num: "02",
+                title: "Risk Simulation",
+                desc: "Evaluate prescription risks before they reach patients using historical context",
+              },
+              {
+                num: "03",
+                title: "Drug Interactions",
+                desc: "Comprehensive checking for drug-drug and drug-disease contraindications",
+              },
+              {
+                num: "04",
+                title: "Lab Trend Analysis",
+                desc: "Monitor trends over time to detect early disease progression and abnormalities",
+              },
+              {
+                num: "05",
+                title: "Duplicate Detection",
+                desc: "Automatically identify repeated tests to reduce unnecessary diagnostic costs",
+              },
+              {
+                num: "06",
+                title: "Overdue Reminders",
+                desc: "Proactive alerts for chronic disease management based on testing intervals",
+              },
+              {
+                num: "07",
+                title: "Red-Flag Summary",
+                desc: "Rapid risk assessment dashboard for clinical decision support at point of care",
+              },
+            ].map((cap, idx) => (
+              <div key={idx} className="flex gap-6 pb-8 border-b border-slate-100 last:border-0">
+                <div className="text-3xl font-bold text-green-700 shrink-0">
+                  {cap.num}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">
+                    {cap.title}
+                  </h3>
+                  <p className="text-slate-600">{cap.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section className="bg-gradient-to-b from-slate-50 to-white py-20">
+        <div className="max-w-[1400px] mx-auto px-8 lg:px-16">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-slate-950 mb-4">
+              Core Values Driving Our Work
+            </h2>
+            <p className="text-lg text-slate-600">
+              Founded on principles of clinical excellence and patient safety
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {team.map((member, idx) => (
-              <div key={idx} className="bg-white rounded-2xl p-6 text-center shadow-sm hover:shadow-lg transition">
-                <div className="text-6xl mb-4">{member.image}</div>
-                <h3 className="text-xl font-bold text-slate-900 mb-1">
-                  {member.name}
-                </h3>
-                <p className="text-sm font-semibold text-green-700 mb-3">
-                  {member.role}
-                </p>
-                <p className="text-sm text-slate-600">{member.expertise}</p>
-              </div>
-            ))}
+            {values.map((value, idx) => {
+              const Icon = value.icon;
+              return (
+                <div key={idx} className="bg-white rounded-2xl p-8 shadow-sm border border-green-50 hover:shadow-xl hover:border-green-200 transition duration-300">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center mb-5">
+                    <Icon className="w-7 h-7 text-green-700" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3">
+                    {value.title}
+                  </h3>
+                  <p className="text-slate-600 leading-7 text-sm">{value.description}</p>
+                </div>
+              );
+            })}
           </div>
-        </div>
-      </section>
-
-      {/* CTA SECTION */}
-      <section className="relative overflow-hidden bg-gradient-to-r from-green-700 via-emerald-600 to-teal-600 py-20">
-        <div className="absolute inset-0 opacity-10">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 1px)",
-              backgroundSize: "30px 30px",
-            }}
-          ></div>
-        </div>
-
-        <div className="relative z-10 max-w-[1400px] mx-auto px-8 lg:px-16 text-center">
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-            Ready to Transform Your Clinical Practice?
-          </h2>
-          <p className="text-xl text-white/90 max-w-2xl mx-auto mb-8">
-            Join healthcare leaders who are already using MERIDIAN to make
-            safer, smarter clinical decisions every day.
-          </p>
-
-          <Link
-            to="/register"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-green-700 font-bold shadow-2xl hover:bg-green-50 transition group"
-          >
-            Get Started with MERIDIAN
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
-          </Link>
         </div>
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-slate-900 text-white py-12">
-        <div className="max-w-[1400px] mx-auto px-8 lg:px-16">
-          <div className="grid md:grid-cols-4 gap-8 mb-12">
+      <section
+        id="contact"
+        className="bg-green-800 text-white py-20 px-8 lg:px-16 border-t border-green-700"
+      >
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-12 mb-12">
+            {/* COMPANY INFO */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-green-600 flex items-center justify-center">
-                  <span className="text-lg font-bold">+</span>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-lg">
+                  <span className="text-green-800 text-lg font-bold">+</span>
                 </div>
-                <span className="font-bold text-lg">MERIDIAN</span>
+                <h3 className="text-2xl font-bold">MERIDIAN</h3>
               </div>
-              <p className="text-slate-400">
-                Clinical Intelligence for Safer Care
+              <p className="text-green-100 text-sm leading-6">
+                Clinical intelligence for safer, more informed healthcare decisions.
               </p>
             </div>
-            {[
-              {
-                title: "Product",
-                links: ["Features", "Pricing", "Security"],
-              },
-              {
-                title: "Company",
-                links: ["About", "Blog", "Careers"],
-              },
-              {
-                title: "Support",
-                links: ["Documentation", "Contact", "Status"],
-              },
-            ].map((section, idx) => (
-              <div key={idx}>
-                <h3 className="font-bold mb-4">{section.title}</h3>
-                <ul className="space-y-2">
-                  {section.links.map((link, i) => (
-                    <li key={i}>
-                      <a
-                        href="#"
-                        className="text-slate-400 hover:text-white transition"
-                      >
-                        {link}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+
+            {/* PRODUCT */}
+            <div>
+              <h4 className="font-bold text-sm uppercase tracking-wider mb-4">Product</h4>
+              <ul className="space-y-2 text-green-100 text-sm">
+                <li><Link to="/features" className="hover:text-white transition">Features</Link></li>
+                <li><Link to="/how-it-works" className="hover:text-white transition">How It Works</Link></li>
+                <li><Link to="/about" className="hover:text-white transition">About</Link></li>
+              </ul>
+            </div>
+
+            {/* COMPANY */}
+            <div>
+              <h4 className="font-bold text-sm uppercase tracking-wider mb-4">Company</h4>
+              <ul className="space-y-2 text-green-100 text-sm">
+                <li><Link to="/contact" className="hover:text-white transition">Contact Us</Link></li>
+                <li><a href="#" className="hover:text-white transition">Blog</a></li>
+                <li><a href="#" className="hover:text-white transition">Careers</a></li>
+              </ul>
+            </div>
+
+            {/* LEGAL */}
+            <div>
+              <h4 className="font-bold text-sm uppercase tracking-wider mb-4">Legal</h4>
+              <ul className="space-y-2 text-green-100 text-sm">
+                <li><a href="#" className="hover:text-white transition">Privacy Policy</a></li>
+                <li><a href="#" className="hover:text-white transition">Terms of Service</a></li>
+                <li><a href="#" className="hover:text-white transition">Security</a></li>
+              </ul>
+            </div>
           </div>
 
-          <div className="border-t border-slate-800 pt-8 text-center text-slate-400">
-            <p>&copy; 2024 MERIDIAN. All rights reserved.</p>
+          {/* DIVIDER */}
+          <div className="border-t border-green-700 pt-8 text-center">
+            <p className="text-green-200 text-sm">
+              &copy; 2024 MERIDIAN. All rights reserved.
+            </p>
           </div>
         </div>
-      </footer>
+      </section>
     </div>
   );
 }

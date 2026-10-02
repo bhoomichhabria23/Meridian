@@ -45,6 +45,8 @@ import PatientLabResults from "./pages/patient/LabResults";
 import DoctorDashboard from "./pages/doctor/Dashboard";
 import DoctorPatient from "./pages/doctor/PatientProfile";
 import DoctorPrescription from "./pages/doctor/NewPrescription";
+import DoctorPrescriptionDetails from "./pages/doctor/PrescriptionDetails";
+import DoctorPrescriptions from "./pages/doctor/Prescriptions";
 import DoctorPatientSearch from "./pages/doctor/PatientSearch";
 import DoctorPatients from "./pages/doctor/Patients";
 import DoctorAppointments from "./pages/doctor/Appointments";
@@ -317,13 +319,22 @@ function AppRoutes() {
         path="/doctor/prescriptions"
         element={
           <ProtectedRoute role="doctor">
-            <DoctorPrescription />
+            <DoctorPrescriptions />
           </ProtectedRoute>
         }
       />
 
       <Route
         path="/doctor/prescription/:id"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorPrescriptionDetails />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/doctor/prescription/new"
         element={
           <ProtectedRoute role="doctor">
             <DoctorPrescription />
@@ -430,7 +441,7 @@ function AppRoutes() {
         path="/reception/appointments/new"
         element={
           <ProtectedRoute role="receptionist">
-            <ReceptionAppointments />
+            <ReceptionBook />
           </ProtectedRoute>
         }
       />

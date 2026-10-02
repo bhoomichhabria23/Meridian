@@ -38,6 +38,7 @@ import {
 
 import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 import {
   collection,
@@ -51,6 +52,7 @@ import {
 import { auth, db } from "../../firebase";
 import Navbar from "../../components/Navbar";
 import { fetchProfile } from "../../services/profileService";
+import { exchangeFirebaseSession } from "../../services/authSessionService";
 import { deleteReport, downloadReport, fetchReports, uploadReport } from "../../services/reportService";
 import { useAuth } from "../../context/AuthContext";
 import { loadPatientTimeline } from "../../services/timelineService";
@@ -84,14 +86,6 @@ const formatUploadDateTime = (value) => {
   return value && !Number.isNaN(date.getTime())
     ? date.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
     : "Uploaded report";
-};
-const reportCacheKey = (uid) => `meridian-reports-${uid}`;
-const readCachedReports = (uid) => {
-  try {
-    return JSON.parse(localStorage.getItem(reportCacheKey(uid)) || "[]");
-  } catch {
-    return [];
-  }
 };
 const mergeReports = (...reportLists) => reportLists.flat().filter((report, index, all) => {
   const reportKey = report._id || report.reportId || report.id || report.fileName;
@@ -181,6 +175,8 @@ export default function Dashboard() {
   const fileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
 
+  const isPatientOwnedReport = (report) =>
+    String(report.uploadedByRole || "patient").toLowerCase() === "patient";
 
   /* ==========================================================
      LOAD USER DATA
@@ -191,8 +187,9 @@ export default function Dashboard() {
     let unsubscribe;
 
     const loadPatientData = async (user) => {
+      const authenticatedUser = user || sessionUser;
 
-      if (!user) {
+      if (!authenticatedUser) {
 
         setLoading(false);
 
@@ -201,14 +198,28 @@ export default function Dashboard() {
 
       try {
 
-        const loginName = sessionUser?.name || sessionUser?.displayName || user.displayName || "Patient";
+        const loginName = sessionUser?.name || sessionUser?.displayName || user?.displayName || "Patient";
         setPatient((current) => ({ ...current, name: loginName }));
 
         /* ------------------------------------------------------
            PATIENT
         ------------------------------------------------------ */
 
-        const profile = await fetchProfile();
+        let profile;
+        try {
+          profile = await fetchProfile();
+        } catch {
+          profile = null;
+        }
+        if (!profile?.patient || (user?.getIdToken && profile.firebaseUid !== user.uid)) {
+          if (!user?.getIdToken) throw new Error("Patient profile is unavailable for the current session.");
+          const serverSession = await exchangeFirebaseSession(user, {
+            role: "patient",
+            name: loginName,
+            phone: user?.phone || sessionUser?.phone || "",
+          });
+          profile = await fetchProfile(serverSession.token);
+        }
         const profilePatient = profile.patient || {};
         const dateOfBirth = profilePatient.dateOfBirth ? new Date(profilePatient.dateOfBirth) : null;
         const calculatedAge = dateOfBirth && !Number.isNaN(dateOfBirth.getTime())
@@ -222,14 +233,15 @@ export default function Dashboard() {
           age: profilePatient.age ?? calculatedAge,
           gender: profilePatient.gender || "—",
           bloodGroup: profilePatient.bloodGroup || "—",
-          phone: profile.phone || user.phoneNumber || "—",
+          phone: profile.phone || profilePatient.phone || sessionUser?.phone || user?.phone || "—",
           height: profilePatient.height || "",
           weight: profilePatient.weight || "",
           bmi: profilePatient.bmi || "",
-          profileImage: localStorage.getItem("profileImage") || "",
+          profileImage: "",
         });
 
-        const timeline = await loadPatientTimeline(user.uid).catch(() => ({ healthTrends: {}, insights: [] }));
+        const timelineIdentity = user?.uid || profile.firebaseUid || authenticatedUser.uid || authenticatedUser.firebaseUid || profile.id;
+        const timeline = await loadPatientTimeline(timelineIdentity).catch(() => ({ healthTrends: {}, insights: [] }));
         setClinicalInsights(timeline.insights || []);
 
 
@@ -241,16 +253,15 @@ export default function Dashboard() {
         const serverReportList = Array.isArray(apiReports)
           ? apiReports
           : apiReports.reports || [];
-        setReports(serverReportList);
-        localStorage.setItem(reportCacheKey(user.uid), JSON.stringify(serverReportList));
+        setReports(serverReportList.filter((report) => isPatientOwnedReport(report)));
 
         const [conditionsSnap, medicationsSnap, labsSnap, appointmentsSnap, alertsSnap] =
           await Promise.all([
-            getDocs(query(collection(db, "conditions"), where("userId", "==", user.uid))),
-            getDocs(query(collection(db, "medications"), where("userId", "==", user.uid))),
-            getDocs(query(collection(db, "labResults"), where("userId", "==", user.uid))),
-            getDocs(query(collection(db, "appointments"), where("userId", "==", user.uid))),
-            getDocs(query(collection(db, "alerts"), where("userId", "==", user.uid))),
+            getDocs(query(collection(db, "conditions"), where("userId", "==", timelineIdentity))),
+            getDocs(query(collection(db, "medications"), where("userId", "==", timelineIdentity))),
+            getDocs(query(collection(db, "labResults"), where("userId", "==", timelineIdentity))),
+            getDocs(query(collection(db, "appointments"), where("userId", "==", timelineIdentity))),
+            getDocs(query(collection(db, "alerts"), where("userId", "==", timelineIdentity))),
           ]);
 
         const firestoreConditions = conditionsSnap.docs.map((item) => ({
@@ -322,7 +333,7 @@ export default function Dashboard() {
       onAuthStateChanged(
         auth,
         (user) => {
-          loadPatientData(user);
+          loadPatientData(user || sessionUser);
         }
       );
 
@@ -335,7 +346,7 @@ export default function Dashboard() {
 
     };
 
-  }, []);
+  }, [sessionUser]);
 
 
   /* ============================================================
@@ -634,7 +645,6 @@ export default function Dashboard() {
         canvas.height = Math.round(image.height * scale);
         canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
         const profileImage = canvas.toDataURL("image/jpeg", 0.82);
-        localStorage.setItem("profileImage", profileImage);
         setPatient((current) => ({ ...current, profileImage }));
       };
       image.src = reader.result;
@@ -671,20 +681,10 @@ export default function Dashboard() {
       setUploadMessage("Uploading reports...");
       const uploaded = await Promise.all(uploadFiles.map((file) => uploadReport(file)));
       const uploadedReports = uploaded.map((item) => item.report || item);
-      setReports((currentReports) => {
-        const nextReports = mergeReports(uploadedReports, currentReports);
-        const userId = auth.currentUser?.uid;
-        if (userId) localStorage.setItem(reportCacheKey(userId), JSON.stringify(nextReports));
-        return nextReports;
-      });
+      setReports((currentReports) => mergeReports(uploadedReports.filter((report) => isPatientOwnedReport(report)), currentReports));
       fetchReports().then((latestReports) => {
         const serverReports = Array.isArray(latestReports) ? latestReports : latestReports.reports || [];
-        setReports((currentReports) => {
-          const nextReports = mergeReports(currentReports, serverReports);
-          const userId = auth.currentUser?.uid;
-          if (userId) localStorage.setItem(reportCacheKey(userId), JSON.stringify(nextReports));
-          return nextReports;
-        });
+        setReports((currentReports) => mergeReports(currentReports, serverReports.filter((report) => isPatientOwnedReport(report))));
       }).catch(() => {});
       setUploadFiles([]);
       setUploadMessage("Reports uploaded successfully.");
@@ -714,12 +714,7 @@ export default function Dashboard() {
     if (!reportId || !window.confirm(`Delete ${report.name || report.fileName || "this report"}?`)) return;
     try {
       await deleteReport(reportId);
-      setReports((currentReports) => {
-        const nextReports = currentReports.filter((item) => String(item._id || item.id || item.reportId) !== String(reportId));
-        const userId = auth.currentUser?.uid;
-        if (userId) localStorage.setItem(reportCacheKey(userId), JSON.stringify(nextReports));
-        return nextReports;
-      });
+      setReports((currentReports) => currentReports.filter((item) => String(item._id || item.id || item.reportId) !== String(reportId)));
       setUploadMessage("Report deleted successfully.");
     } catch (error) {
       setUploadMessage(error.message || "Unable to delete report.");
@@ -734,7 +729,144 @@ export default function Dashboard() {
     }
   };
 
+  const loadPatientSummaryRecords = async () => {
+    let token;
+    if (auth.currentUser) {
+      const serverSession = await exchangeFirebaseSession(auth.currentUser, {
+        role: "patient",
+        name: patient.name,
+        phone: patient.phone === "—" ? "" : patient.phone,
+      });
+      token = serverSession.token;
+    }
+    const profile = await fetchProfile(token);
+    const identity = profile?.id || profile?.firebaseUid || profile?.patient?.userId || sessionUser?.id || sessionUser?.uid || sessionUser?.firebaseUid;
+    const apiOrigin = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/api\/?$/, "").replace(/\/$/, "");
+    const request = async (path) => {
+      if (!path) return null;
+      const response = await fetch(`${apiOrigin}${path}`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error(`Unable to load ${path}`);
+      const payload = await response.json();
+      return payload?.success && "data" in payload ? payload.data : payload;
+    };
+    const [medicationRecords, prescriptions, labRecords, appointmentRecords, diagnoses] = await Promise.all([
+      request("/api/medications"),
+      request("/api/prescriptions"),
+      request(identity ? `/api/medical-records/labs/${encodeURIComponent(identity)}` : null),
+      request("/api/appointments"),
+      request(identity ? `/api/medical-records/diagnoses/${encodeURIComponent(identity)}` : null),
+    ]);
+    const profileConditions = profile?.patient?.conditions || [];
+    const diagnosisConditions = (Array.isArray(diagnoses) ? diagnoses : []).map((item) => ({ name: item.condition, diagnosedDate: item.diagnosedDate, status: item.status }));
+    const uniqueBy = (items, getKey) => [...new Map(items.filter(Boolean).map((item) => [getKey(item).toLowerCase(), item])).values()];
+    const conditionItems = [
+      ...(Array.isArray(profileConditions) ? profileConditions : []),
+      ...diagnosisConditions,
+      ...conditions,
+    ].map((item) => typeof item === "string" ? { name: item } : item);
+    const prescribedMedications = (Array.isArray(prescriptions) ? prescriptions : []).flatMap((prescription) => (prescription.medications || []).map((medication) => ({
+      ...medication,
+      prescriptionId: prescription.prescriptionId,
+      status: prescription.status,
+    })));
+    const structuredLabs = (Array.isArray(labRecords) ? labRecords : []).flatMap((lab) => (lab.results || []).map((result) => ({
+      testName: result.parameter || lab.testName,
+      value: result.value,
+      unit: result.unit,
+      date: lab.testDate,
+    })));
+    return {
+      conditions: uniqueBy(conditionItems, (item) => String(item.name || item.condition || "Condition")),
+      medications: uniqueBy([
+        ...(Array.isArray(medicationRecords) ? medicationRecords : []),
+        ...prescribedMedications,
+        ...medications,
+      ], (item) => `${item.name || item.medicationName || "Medication"}-${item.dosage || item.dose || ""}`),
+      labs: [...structuredLabs, ...labs],
+      appointments: Array.isArray(appointmentRecords) ? appointmentRecords : appointments,
+      reports,
+      profile,
+    };
+  };
+
+  const buildPatientSummary = (records = {}) => {
+    const summaryPatient = records.profile?.patient || {};
+    const summaryName = records.profile?.name || patient.name;
+    const summaryPatientId = summaryPatient.patientCode || patient.patientId;
+    const list = (items, getLabel) => items.length ? items.map((item) => `- ${getLabel(item)}`) : ["- None recorded"];
+    const valueOrUnknown = (value) => value || "Not recorded";
+    return [
+      "MERIDIAN PATIENT SUMMARY",
+      `Generated: ${new Date().toLocaleString()}`,
+      "",
+      "PATIENT",
+      `Name: ${valueOrUnknown(summaryName)}`,
+      `Patient ID: ${valueOrUnknown(summaryPatientId)}`,
+      `Age: ${valueOrUnknown(summaryPatient.age ?? patient.age)}`,
+      `Gender: ${valueOrUnknown(summaryPatient.gender || patient.gender)}`,
+      `Blood group: ${valueOrUnknown(summaryPatient.bloodGroup || patient.bloodGroup)}`,
+      `Phone: ${valueOrUnknown(records.profile?.phone || summaryPatient.phone || patient.phone)}`,
+      `Height: ${summaryPatient.height || patient.height ? `${formatHeight(summaryPatient.height || patient.height)} (${summaryPatient.height || patient.height} cm)` : "Not recorded"}`,
+      `Weight: ${summaryPatient.weight || patient.weight ? `${summaryPatient.weight || patient.weight} kg` : "Not recorded"}`,
+      `BMI: ${summaryPatient.bmi || bmi || "Not available"}`,
+      "",
+      "CONDITIONS",
+      ...list(records.conditions || conditions, (item) => item.name || item.condition || "Condition"),
+      "",
+      "MEDICATIONS",
+      ...list(records.medications || medications, (item) => [item.name || item.medicationName || "Medication", item.dosage || item.dose, item.frequency, item.timing, item.duration].filter(Boolean).join(" - ")),
+      "",
+      "LAB RESULTS",
+      ...list(records.labs || labs, (item) => [item.testName || item.name || item.type || "Lab result", item.value, item.unit, item.date || item.testDate ? formatUploadDateTime(item.date || item.testDate) : ""].filter(Boolean).join(" - ")),
+      "",
+      "REPORTS",
+      ...list(records.reports || reports, (item) => [item.name || item.fileName || item.testName || "Report", item.date ? formatUploadDateTime(item.date) : ""].filter(Boolean).join(" - ")),
+      "",
+      "APPOINTMENTS",
+      ...list(records.appointments || appointments, (item) => [item.date ? formatUploadDateTime(item.date) : "Appointment", item.chiefComplaint || item.reason || item.appointmentType, item.status].filter(Boolean).join(" - ")),
+    ].join("\n");
+  };
+
+  const handleShareRecords = async () => {
+    const text = buildPatientSummary();
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Patient health summary", text });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        toast.success("Health summary copied to clipboard");
+      } else {
+        handleDownloadSummary();
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") toast.error("Unable to share the health summary");
+    }
+  };
+
+  const handleDownloadSummary = async () => {
+    try {
+    const records = await loadPatientSummaryRecords();
+    const blob = new Blob([buildPatientSummary(records)], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safePatientId = String(records.profile?.patient?.patientCode || patient.patientId || "patient").replace(/[^a-z0-9_-]/gi, "_");
+    link.href = url;
+    link.download = `meridian-summary-${safePatientId}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Patient summary downloaded");
+    } catch (error) {
+      toast.error(error.message || "Unable to download patient summary");
+    }
+  };
+
   const recentReports = [...reports]
+    .filter((report) => isPatientOwnedReport(report))
     .sort((first, second) => new Date(second.date || second.createdAt) - new Date(first.date || first.createdAt))
     .slice(0, 3);
 
@@ -1522,6 +1654,7 @@ export default function Dashboard() {
                     <CalendarDays />
                   }
                   label="Book Appointment"
+                  onClick={() => navigate("/patient/appointments")}
                 />
 
                 <QuickAction
@@ -1529,6 +1662,7 @@ export default function Dashboard() {
                     <ClipboardList />
                   }
                   label="View Prescriptions"
+                  onClick={() => navigate("/patient/prescriptions")}
                 />
 
                 <QuickAction
@@ -1536,6 +1670,7 @@ export default function Dashboard() {
                     <Share2 />
                   }
                   label="Share Records"
+                  onClick={handleShareRecords}
                 />
 
                 <QuickAction
@@ -1543,6 +1678,7 @@ export default function Dashboard() {
                     <Download />
                   }
                   label="Download Summary"
+                  onClick={handleDownloadSummary}
                 />
 
               </div>
@@ -2182,13 +2318,15 @@ function UploadedFile({
 function QuickAction({
   icon,
   label,
+  onClick,
 }) {
 
   return (
 
     <button
       type="button"
-      className="flex items-center gap-2 rounded-xl border border-[#e3eee5] bg-[#f8fcf9] px-3 py-3 text-left text-[10px] font-semibold text-gray-700 transition hover:border-[#b8ddc0] hover:bg-[#eef9f1] hover:text-[#159447]"
+      onClick={onClick}
+      className="flex items-center gap-2 rounded-xl border border-[#e3eee5] bg-[#f8fcf9] px-3 py-3 text-left text-[10px] font-semibold text-gray-700 transition hover:border-[#b8ddc0] hover:bg-[#eef9f1] hover:text-[#159447] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25854d] focus-visible:ring-offset-2"
     >
 
       {React.cloneElement(

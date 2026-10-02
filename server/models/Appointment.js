@@ -5,7 +5,9 @@ const AppointmentSchema = new mongoose.Schema({
   doctorId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor',  required: true },
   date:            { type: Date,   required: true },
   timeSlot:        { type: String, required: true },
-  status:          { type: String, enum: ['pending','confirmed','completed','cancelled'], default: 'pending' },
+  appointmentType: { type: String, default: 'Consultation' },
+  department:      { type: String, default: '' },
+  status:          { type: String, enum: ['pending','confirmed','completed','cancelled','rescheduled'], default: 'pending' },
   chiefComplaint:  { type: String },
   symptomDuration: {
     value: { type: Number },

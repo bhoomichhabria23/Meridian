@@ -4,11 +4,6 @@ import Navbar from "../../components/Navbar";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-function auth() {
-  const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 function formatDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Just now" : date.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -23,7 +18,7 @@ export default function Notifications() {
     try {
       setLoading(true);
       setError("");
-      const response = await fetch(`${API_URL}/api/notifications`, { headers: auth() });
+      const response = await fetch(`${API_URL}/api/notifications`, { credentials: "include" });
       if (!response.ok) throw new Error("Unable to load notifications.");
       setItems(await response.json());
     } catch (requestError) {
@@ -37,7 +32,7 @@ export default function Notifications() {
 
   const markRead = async (item) => {
     if (item.read) return;
-    const response = await fetch(`${API_URL}/api/notifications/${item._id}/read`, { method: "PUT", headers: auth() });
+    const response = await fetch(`${API_URL}/api/notifications/${item._id}/read`, { method: "PUT", credentials: "include" });
     if (response.ok) setItems((current) => current.map((notification) => notification._id === item._id ? { ...notification, read: true } : notification));
   };
 

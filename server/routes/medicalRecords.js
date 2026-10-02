@@ -4,6 +4,8 @@ const Allergy = require("../models/Allergy");
 const Medication = require("../models/Medication");
 const LabResult = require("../models/LabResult");
 const AuditLog = require("../models/AuditLog");
+const Patient = require("../models/Patient");
+const mongoose = require("mongoose");
 const { verifyToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -19,9 +21,39 @@ router.get(
   verifyToken,
   async (req, res) => {
     try {
-      const diagnoses = await Diagnosis.find({
-        patientId: req.params.patientId,
-      }).sort({ diagnosedDate: -1 });
+      const identity = String(req.params.patientId || "").trim();
+      if (!identity || identity === "undefined" || identity === "null") {
+        return res.status(400).json({
+          success: false,
+          message: "A valid patient identity is required",
+          data: [],
+        });
+      }
+
+      let patientUserId = null;
+      let patientRecordId = null;
+      if (mongoose.Types.ObjectId.isValid(identity)) {
+        const patient = await Patient.findOne({
+          $or: [{ _id: identity }, { userId: identity }],
+        }).select("_id userId").lean();
+        if (patient) {
+          patientUserId = patient.userId;
+          patientRecordId = patient._id;
+        } else {
+          patientUserId = identity;
+        }
+      } else {
+        const user = await require("../models/User").findOne({ firebaseUid: identity }).select("_id").lean();
+        if (user) {
+          patientUserId = user._id;
+          const patient = await Patient.findOne({ userId: user._id }).select("_id").lean();
+          patientRecordId = patient?._id;
+        }
+      }
+      if (!patientUserId) return res.status(200).json({ success: true, data: [] });
+
+      const patientIds = [patientUserId, patientRecordId].filter(Boolean);
+      const diagnoses = await Diagnosis.find({ patientId: { $in: patientIds } }).sort({ diagnosedDate: -1 });
 
       return res.status(200).json({
         success: true,
@@ -63,8 +95,27 @@ router.post(
         });
       }
 
+      if (!mongoose.Types.ObjectId.isValid(req.params.patientId)) {
+        return res.status(404).json({
+          success: false,
+          message: "Patient not found",
+        });
+      }
+      const patient = await Patient.findOne({
+        $or: [
+          { _id: req.params.patientId },
+          { userId: req.params.patientId },
+        ],
+      }).select("userId");
+      if (!patient) {
+        return res.status(404).json({
+          success: false,
+          message: "Patient not found",
+        });
+      }
+
       const diagnosis = await Diagnosis.create({
-        patientId: req.params.patientId,
+        patientId: patient.userId,
         doctorId: req.user.id,
         condition,
         icdCode,
@@ -81,7 +132,7 @@ router.post(
         action: "DIAGNOSIS_ADDED",
         entityType: "Diagnosis",
         entityId: diagnosis._id,
-        targetUserId: req.params.patientId,
+        targetUserId: patient.userId,
       });
 
       return res.status(201).json({

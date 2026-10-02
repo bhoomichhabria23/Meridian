@@ -62,7 +62,6 @@ export default function ReceptionProfile() {
 
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
-      localStorage.clear()
       logout?.()
       navigate('/login')
     }

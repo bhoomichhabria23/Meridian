@@ -1,8 +1,9 @@
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 import { db } from "../firebase";
+import { API_BASE_URL } from "../api/config";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = API_BASE_URL || "http://localhost:5000";
 
 export async function saveUserProfileToFirebase(firebaseUser, profile = {}) {
   if (!firebaseUser?.uid) return null;
@@ -35,6 +36,20 @@ export async function saveUserProfileToFirebase(firebaseUser, profile = {}) {
 
 export async function exchangeFirebaseSession(firebaseUser, profile = {}) {
   const idToken = await firebaseUser.getIdToken(true);
+  let storedProfile = null;
+  if ((!profile.phone || !profile.specialization) && firebaseUser.uid) {
+    try {
+      const profileSnapshot = await getDoc(doc(db, "users", firebaseUser.uid));
+      storedProfile = profileSnapshot.exists() ? profileSnapshot.data() : null;
+    } catch (error) {
+      console.warn("Firebase profile could not be loaded:", error.message);
+    }
+  }
+  const sessionProfile = {
+    ...profile,
+    phone: profile.phone || storedProfile?.phone || "",
+    specialization: profile.specialization || storedProfile?.specialization || "",
+  };
   const controller = new AbortController();
   const requestTimeout = setTimeout(() => controller.abort(), 12000);
 
@@ -42,13 +57,14 @@ export async function exchangeFirebaseSession(firebaseUser, profile = {}) {
   try {
     response = await fetch(`${API_URL}/api/auth/firebase-session`, {
       method: "POST",
+      credentials: "include", // Include cookies in request and save response cookies
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         idToken,
-        role: profile.role || "patient",
-        name: profile.name || firebaseUser.displayName || "User",
-        phone: profile.phone || "",
-        specialization: profile.specialization || "",
+        role: sessionProfile.role || "patient",
+        name: sessionProfile.name || firebaseUser.displayName || "User",
+        phone: sessionProfile.phone,
+        specialization: sessionProfile.specialization || "",
       }),
       signal: controller.signal,
     });
@@ -60,15 +76,13 @@ export async function exchangeFirebaseSession(firebaseUser, profile = {}) {
   if (!response.ok) throw new Error(result.message || "Unable to create Meridian session.");
 
   try {
-    await saveUserProfileToFirebase(firebaseUser, profile);
+    await saveUserProfileToFirebase(firebaseUser, {
+      ...sessionProfile,
+      specialization: sessionProfile.specialization || result.user?.specialization || "",
+    });
   } catch (error) {
     console.warn("Firebase profile could not be saved:", error.message);
   }
 
-  localStorage.setItem("token", result.token);
-  localStorage.setItem("auth_token", result.token);
-  localStorage.setItem("patientId", result.user.id);
-  localStorage.setItem("user", JSON.stringify(result.user));
-  localStorage.setItem("role", result.user.role);
-  return result.user;
+  return { ...result.user, token: result.token };
 }

@@ -68,6 +68,21 @@ const medicationSchema = new mongoose.Schema(
       default: "active",
     },
 
+    stoppedReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    stoppedAt: {
+      type: Date,
+    },
+
+    stoppedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
     reminder: {
       type: Boolean,
       default: false,

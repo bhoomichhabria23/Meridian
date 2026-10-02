@@ -65,12 +65,12 @@ const formatHeight = (centimeters) => {
   const { feet, inches } = heightParts(centimeters);
   return feet === "" ? "" : `${feet}' ${inches}"`;
 };
-const profileFromResponse = (data) => {
+const profileFromResponse = (data, sessionUser = {}) => {
   const patient = data.patient || {};
   return {
     name: data.name || "",
     email: data.email || "",
-    phone: data.phone || patient.phone || "",
+    phone: data.phone || patient.phone || sessionUser.phone || "",
     age: patient.age ?? "",
     height: formatHeight(patient.height),
     weight: patient.weight ?? "",
@@ -86,7 +86,7 @@ const profileFromResponse = (data) => {
     emergencyName: patient.emergencyContact?.name || "",
     emergencyRelationship: patient.emergencyContact?.relationship || "",
     emergencyPhone: patient.emergencyContact?.phone || "",
-    profileImage: localStorage.getItem("profileImage") || "",
+    profileImage: "",
   };
 };
 function Field({ label, value, onChange, disabled = false, type = "text", placeholder = "", emptyDisplay = "Not provided" }) {
@@ -144,7 +144,7 @@ function ErrorState({ error, retry }) {
 }
 
 export default function Profile() {
-  const { logout } = useAuth();
+  const { logout, user: sessionUser } = useAuth();
   const [profile, setProfile] = useState(empty);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -157,7 +157,7 @@ export default function Profile() {
       setLoading(true);
       setError("");
       const data = await fetchProfile();
-      setProfile(profileFromResponse(data));
+      setProfile(profileFromResponse(data, sessionUser));
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -166,7 +166,7 @@ export default function Profile() {
   };
   useEffect(() => {
     load();
-  }, []);
+  }, [sessionUser]);
   const set = (key, value) =>
     setProfile((current) => ({ ...current, [key]: value }));
   const handleLogout = async () => {
@@ -191,7 +191,6 @@ export default function Profile() {
         canvas.height = Math.round(image.height * scale);
         canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
         const profileImage = canvas.toDataURL("image/jpeg", 0.82);
-        localStorage.setItem("profileImage", profileImage);
         set("profileImage", profileImage);
         setError("");
       };
@@ -230,7 +229,7 @@ export default function Profile() {
           phone: profile.emergencyPhone,
         },
       });
-      setProfile(profileFromResponse(data));
+      setProfile(profileFromResponse(data, sessionUser));
       setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2600);

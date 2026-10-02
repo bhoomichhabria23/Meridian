@@ -25,14 +25,10 @@ const DoctorDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const token =
-        localStorage.getItem("token");
       const response = await axios.get(
         "/api/doctors/dashboard",
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          withCredentials: true,
         }
       );
 

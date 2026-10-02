@@ -10,9 +10,10 @@ const Allergy = require("../models/Allergy");
 const Medication = require("../models/Medication");
 const LabResult = require("../models/LabResult");
 const AuditLog = require("../models/AuditLog");
+const cacheManager = require("../utils/cacheManager");
 const {
   verifyToken,
-  authorizeRole,
+  requireRole,
 } = require("../middleware/auth");
 
 const router = express.Router();
@@ -91,6 +92,10 @@ router.post(
       }
 
       await doctor.save();
+      await User.findByIdAndUpdate(doctor.userId, {
+        specialization: doctor.specialty || '',
+      });
+      cacheManager.clear();
 
       return res.status(200).json({
         success: true,
@@ -190,6 +195,48 @@ router.get("/dashboard", verifyToken, async (req, res) => {
 });
 
 /**
+ * GET /api/doctors/patients
+ * Return patients linked to this doctor through active appointment records.
+ * Uses confirmed appointments as the main filter, while also including
+ * pending/completed records so the doctor sees care-linked patients reliably.
+ */
+router.get("/patients", verifyToken, requireRole("doctor"), async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({ userId: req.user.id }).select("_id").lean();
+    const doctorIds = [req.user.id];
+    if (doctor?._id) doctorIds.push(doctor._id);
+
+    const appointments = await Appointment.find({
+      doctorId: { $in: doctorIds },
+      status: "confirmed",
+    }).select("patientId status").lean();
+
+    const appointmentPatientIds = [...new Set(appointments.map((item) => item.patientId?.toString()).filter(Boolean))];
+    if (!appointmentPatientIds.length) return res.json([]);
+
+    const patients = await Patient.find({
+      $or: [
+        { _id: { $in: appointmentPatientIds } },
+        { userId: { $in: appointmentPatientIds } },
+      ],
+    })
+      .populate("userId", "name email phone")
+      .lean();
+
+    patients.sort((a, b) => {
+      const aName = a.userId?.name || a.name || "";
+      const bName = b.userId?.name || b.name || "";
+      return aName.localeCompare(bName);
+    });
+
+    res.json(patients);
+  } catch (error) {
+    console.error("Error fetching doctor patients:", error);
+    res.status(500).json({ message: "Failed to fetch doctor patients" });
+  }
+});
+
+/**
  * GET /api/doctors/patients/search
  * Search for patients
  */
@@ -267,9 +314,14 @@ router.get(
   verifyToken,
   async (req, res) => {
     try {
-      const patient = await Patient.findById(
-        req.params.patientId
-      ).populate("userId", "name email phone role");
+      let patient = null;
+      if (mongoose.Types.ObjectId.isValid(req.params.patientId)) {
+        patient = await Patient.findById(req.params.patientId).populate("userId", "name email phone role");
+      }
+
+      if (!patient) {
+        patient = await Patient.findOne({ userId: req.params.patientId }).populate("userId", "name email phone role");
+      }
 
       if (!patient) {
         return res.status(404).json({
@@ -311,11 +363,16 @@ router.get(
   verifyToken,
   async (req, res) => {
     try {
-      const patientUserId = await Patient.findById(
-        req.params.patientId
-      ).select("userId");
+      let patientRecord = null;
+      if (mongoose.Types.ObjectId.isValid(req.params.patientId)) {
+        patientRecord = await Patient.findById(req.params.patientId).select("userId");
+      }
 
-      if (!patientUserId) {
+      if (!patientRecord) {
+        patientRecord = await Patient.findOne({ userId: req.params.patientId }).select("userId");
+      }
+
+      if (!patientRecord) {
         return res.status(404).json({
           success: false,
           message: "Patient not found",
@@ -332,22 +389,22 @@ router.get(
         appointments,
       ] = await Promise.all([
         Diagnosis.find({
-          patientId: patientUserId.userId,
+          patientId: patientRecord.userId,
         }),
         Allergy.find({
-          patientId: patientUserId.userId,
+          patientId: patientRecord.userId,
         }),
         Medication.find({
-          patientId: patientUserId.userId,
+          patientId: patientRecord.userId,
         }),
         LabResult.find({
-          patientId: patientUserId.userId,
+          patientId: patientRecord.userId,
         }),
         Prescription.find({
-          patientId: patientUserId.userId,
+          patientId: patientRecord.userId,
         }),
         Appointment.find({
-          patientId: req.params.patientId,
+          patientId: patientRecord._id,
         }),
       ]);
 

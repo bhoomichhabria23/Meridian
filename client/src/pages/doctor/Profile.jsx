@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import Layout from '../../components/common/Layout'
-import api from '../../api/axios'
-import { useAuth } from '../../context/AuthContext'
-import { Empty, PageLoader } from '../../components/common/UI'
-import { Edit2, Save, X, Mail, Phone, MapPin, GraduationCap } from 'lucide-react'
-import toast from 'react-hot-toast'
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { BriefcaseBusiness, Edit3, GraduationCap, Mail, MapPin, Phone, Save, Stethoscope, X } from 'lucide-react';
+import Layout from '../../components/common/Layout';
+import api from '../../api/axios';
+import { useAuth } from '../../context/AuthContext';
+import { PageLoader } from '../../components/common/UI';
+import toast from 'react-hot-toast';
 
 const LINKS = [
   { to: '/doctor/dashboard', label: 'Dashboard', icon: '🏥' },
@@ -15,288 +15,219 @@ const LINKS = [
   { to: '/doctor/safety-alerts', label: 'Safety Alerts', icon: '⚠️' },
   { to: '/doctor/ai-assistant', label: 'AI Assistant', icon: '🤖' },
   { to: '/doctor/profile', label: 'Profile', icon: '👤' },
-]
+];
 
 export default function DoctorProfile() {
-  const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [profile, setProfile] = useState({
     name: user?.name || '',
     email: user?.email || '',
     phone: '',
     specialization: 'General Physician',
-    licenseNumber: '',
-    yearsOfExperience: '',
-    hospitalAffiliation: '',
-    bio: ''
-  })
-  const [editMode, setEditMode] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+    licenseNo: '',
+    department: '',
+    hospital: '',
+    workingHours: { start: '09:00', end: '17:00' },
+    bio: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/api/doctors/me/profile');
+      const data = res.data?.data || res.data || {};
+      setProfile({
+        name: data.userId?.name || user?.name || '',
+        email: data.userId?.email || user?.email || '',
+        phone: data.userId?.phone || '',
+        specialization: data.specialty || data.specialization || data.userId?.specialization || user?.specialization || 'General Physician',
+        licenseNo: data.licenseNo || '',
+        department: data.department || '',
+        hospital: data.hospital || '',
+        workingHours: data.workingHours || { start: '09:00', end: '17:00' },
+        bio: data.bio || '',
+      });
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Unable to load doctor profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // In real app, fetch doctor profile from backend
-  }, [])
+    loadProfile();
+  }, [user]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setProfile(prev => ({
-      ...prev,
-      [name]: value
-    }))
-  }
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setProfile((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleHoursChange = (field, value) => {
+    setProfile((current) => ({
+      ...current,
+      workingHours: {
+        ...current.workingHours,
+        [field]: value,
+      },
+    }));
+  };
 
   const handleSave = async () => {
     try {
-      setLoading(true)
-      // In real app, save to backend
-      await new Promise(resolve => setTimeout(resolve, 500))
-      toast.success('Profile updated successfully')
-      setEditMode(false)
+      setSaving(true);
+      setError('');
+      await api.post('/api/doctors/setup-profile', {
+        specialty: profile.specialization,
+        licenseNo: profile.licenseNo,
+        hospital: profile.hospital,
+        department: profile.department,
+        workingHours: profile.workingHours,
+        bio: profile.bio,
+      });
+      toast.success('Profile updated successfully');
+      setEditing(false);
+      await loadProfile();
     } catch (err) {
-      setError('Failed to save profile')
-      toast.error('Failed to save profile')
+      setError(err?.response?.data?.message || 'Unable to save doctor profile.');
+      toast.error('Profile update failed');
     } finally {
-      setLoading(false)
+      setSaving(false);
     }
-  }
+  };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('Are you sure you want to logout?')) {
-      localStorage.clear()
-      logout?.()
-      navigate('/login')
+      await logout();
+      navigate('/login');
     }
-  }
+  };
+
+  if (loading) return <Layout links={LINKS}><PageLoader /></Layout>;
 
   return (
     <Layout links={LINKS}>
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Profile</h1>
-          <p className="text-slate-600">Manage your professional information</p>
-        </div>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
-          </div>
-        )}
-
-        {/* Profile Card */}
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-green-600 to-teal-600 px-8 py-8">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-3xl font-bold text-white mb-2">{profile.name}</h2>
-                <p className="text-green-100">{profile.specialization}</p>
-              </div>
-              <button
-                onClick={() => setEditMode(!editMode)}
-                className="p-3 bg-white/20 hover:bg-white/30 text-white rounded-lg transition"
-              >
-                {editMode ? <X className="w-5 h-5" /> : <Edit2 className="w-5 h-5" />}
-              </button>
+      <div className="mx-auto max-w-5xl space-y-6">
+        <section className="rounded-[28px] border border-[#d7efe0] bg-gradient-to-r from-[#0f5132] via-[#1a7a4a] to-[#19b36d] p-6 text-white shadow-[0_18px_45px_rgba(26,122,74,0.2)] md:p-7">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100">Doctor profile</p>
+              <h1 className="mt-2 text-3xl font-black md:text-4xl">{profile.name || 'Doctor profile'}</h1>
             </div>
+            <button onClick={() => setEditing((value) => !value)} className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white">
+              {editing ? <><X className="h-4 w-4" /> Close</> : <><Edit3 className="h-4 w-4" /> Edit profile</>}
+            </button>
           </div>
+        </section>
 
-          {/* Content */}
-          <div className="p-8">
-            {editMode ? (
-              <div className="space-y-6">
-                {/* Name */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={profile.name}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+        {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">{error}</div>}
+
+        <section className="rounded-3xl border border-[#dfeee3] bg-white p-5 shadow-[0_10px_30px_rgba(17,95,57,0.05)] md:p-6">
+          {editing ? (
+            <div className="grid gap-5 md:grid-cols-2">
+              <label className="text-sm font-bold text-[#183a28]">Full name
+                <input name="name" value={profile.name} onChange={handleChange} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28]">Email
+                <input name="email" value={profile.email} onChange={handleChange} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28]">Phone
+                <input name="phone" value={profile.phone} onChange={handleChange} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28]">Specialization
+                <input name="specialization" value={profile.specialization} onChange={handleChange} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28]">License number
+                <input name="licenseNo" value={profile.licenseNo} onChange={handleChange} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28]">Department
+                <input name="department" value={profile.department} onChange={handleChange} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28] md:col-span-2">Hospital / clinic
+                <input name="hospital" value={profile.hospital} onChange={handleChange} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28]">Start time
+                <input type="time" value={profile.workingHours?.start || '09:00'} onChange={(event) => handleHoursChange('start', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28]">End time
+                <input type="time" value={profile.workingHours?.end || '17:00'} onChange={(event) => handleHoursChange('end', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <label className="text-sm font-bold text-[#183a28] md:col-span-2">Professional bio
+                <textarea name="bio" value={profile.bio} onChange={handleChange} rows={4} className="mt-2 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 py-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+              </label>
+
+              <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
+                <button disabled={saving} onClick={handleSave} className="inline-flex items-center gap-2 rounded-xl bg-[#159447] px-4 py-3 text-sm font-bold text-white disabled:opacity-60">
+                  <Save className="h-4 w-4" /> {saving ? 'Saving...' : 'Save changes'}
+                </button>
+                <button onClick={() => setEditing(false)} className="rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-4 py-3 text-sm font-bold text-[#183a28]">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-[#5c7868]"><Mail className="h-4 w-4 text-[#159447]" /> Email</div>
+                  <p className="text-base font-bold text-[#183a28]">{profile.email || 'Not provided'}</p>
                 </div>
 
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={profile.email}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+                <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-[#5c7868]"><Phone className="h-4 w-4 text-[#159447]" /> Phone</div>
+                  <p className="text-base font-bold text-[#183a28]">{profile.phone || 'Not provided'}</p>
                 </div>
 
-                {/* Phone */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={profile.phone}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+                <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-[#5c7868]"><Stethoscope className="h-4 w-4 text-[#159447]" /> Specialization</div>
+                  <p className="text-base font-bold text-[#183a28]">{profile.specialization || 'General Physician'}</p>
                 </div>
 
-                {/* Specialization */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Specialization</label>
-                  <select
-                    name="specialization"
-                    value={profile.specialization}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option>General Physician</option>
-                    <option>Cardiologist</option>
-                    <option>Dermatologist</option>
-                    <option>Neurologist</option>
-                    <option>Pediatrician</option>
-                    <option>Psychiatrist</option>
-                  </select>
+                <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-[#5c7868]"><GraduationCap className="h-4 w-4 text-[#159447]" /> License</div>
+                  <p className="text-base font-bold text-[#183a28]">{profile.licenseNo || 'Not provided'}</p>
                 </div>
 
-                {/* License Number */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">License Number</label>
-                  <input
-                    type="text"
-                    name="licenseNumber"
-                    value={profile.licenseNumber}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+                <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-[#5c7868]"><BriefcaseBusiness className="h-4 w-4 text-[#159447]" /> Department</div>
+                  <p className="text-base font-bold text-[#183a28]">{profile.department || 'Not provided'}</p>
                 </div>
 
-                {/* Years of Experience */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Years of Experience</label>
-                  <input
-                    type="number"
-                    name="yearsOfExperience"
-                    value={profile.yearsOfExperience}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-
-                {/* Hospital Affiliation */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Hospital Affiliation</label>
-                  <input
-                    type="text"
-                    name="hospitalAffiliation"
-                    value={profile.hospitalAffiliation}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-
-                {/* Bio */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Professional Bio</label>
-                  <textarea
-                    name="bio"
-                    value={profile.bio}
-                    onChange={handleChange}
-                    rows={4}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-
-                {/* Save Button */}
-                <div className="flex gap-2 pt-4">
-                  <button
-                    onClick={handleSave}
-                    disabled={loading}
-                    className="flex-1 bg-green-700 hover:bg-green-800 text-white font-medium py-2 rounded-lg transition disabled:opacity-50"
-                  >
-                    <Save className="w-4 h-4 inline mr-2" />
-                    Save Changes
-                  </button>
-                  <button
-                    onClick={() => setEditMode(false)}
-                    className="flex-1 bg-slate-300 hover:bg-slate-400 text-slate-900 font-medium py-2 rounded-lg transition"
-                  >
-                    Cancel
-                  </button>
+                <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-[#5c7868]"><MapPin className="h-4 w-4 text-[#159447]" /> Hospital</div>
+                  <p className="text-base font-bold text-[#183a28]">{profile.hospital || 'Not provided'}</p>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Info Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <div className="flex items-center gap-2 text-slate-600 mb-1">
-                      <Mail className="w-4 h-4" />
-                      <span className="text-sm font-medium">Email</span>
-                    </div>
-                    <p className="text-slate-900">{profile.email}</p>
-                  </div>
 
-                  <div>
-                    <div className="flex items-center gap-2 text-slate-600 mb-1">
-                      <Phone className="w-4 h-4" />
-                      <span className="text-sm font-medium">Phone</span>
-                    </div>
-                    <p className="text-slate-900">{profile.phone || 'Not provided'}</p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2 text-slate-600 mb-1">
-                      <GraduationCap className="w-4 h-4" />
-                      <span className="text-sm font-medium">Specialization</span>
-                    </div>
-                    <p className="text-slate-900">{profile.specialization}</p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2 text-slate-600 mb-1">
-                      <span className="text-sm font-medium">License Number</span>
-                    </div>
-                    <p className="text-slate-900">{profile.licenseNumber || 'Not provided'}</p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2 text-slate-600 mb-1">
-                      <span className="text-sm font-medium">Years of Experience</span>
-                    </div>
-                    <p className="text-slate-900">{profile.yearsOfExperience || 'Not provided'}</p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2 text-slate-600 mb-1">
-                      <MapPin className="w-4 h-4" />
-                      <span className="text-sm font-medium">Hospital Affiliation</span>
-                    </div>
-                    <p className="text-slate-900">{profile.hospitalAffiliation || 'Not provided'}</p>
-                  </div>
-                </div>
-
-                {profile.bio && (
-                  <div>
-                    <h3 className="text-sm font-medium text-slate-700 mb-2">Professional Bio</h3>
-                    <p className="text-slate-600">{profile.bio}</p>
-                  </div>
-                )}
-
-                {/* Logout Button */}
-                <div className="pt-4 border-t border-slate-200">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full bg-red-700 hover:bg-red-800 text-white font-medium py-2 rounded-lg transition"
-                  >
-                    Logout
-                  </button>
-                </div>
+              <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
+                <p className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-[#5c7868]">Availability</p>
+                <p className="text-base font-bold text-[#183a28]">{profile.workingHours?.start || '09:00'} – {profile.workingHours?.end || '17:00'}</p>
               </div>
-            )}
-          </div>
-        </div>
+
+              {profile.bio && (
+                <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
+                  <p className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-[#5c7868]">Professional bio</p>
+                  <p className="text-base leading-7 text-[#183a28]">{profile.bio}</p>
+                </div>
+              )}
+
+              <button onClick={handleLogout} className="w-full rounded-xl bg-[#d93b36] px-4 py-3 text-sm font-bold text-white">Logout</button>
+            </div>
+          )}
+        </section>
       </div>
     </Layout>
-  )
+  );
 }

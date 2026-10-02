@@ -1,21 +1,13 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import {
-  Mail,
-  Phone,
-  MapPin,
-  Globe,
-  MessageCircle,
-  Share2,
-  ArrowRight,
-  CheckCircle,
-} from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Mail, Phone, MapPin, ArrowRight, CheckCircle, Clock, MessageCircle } from "lucide-react";
 
 export default function Contact() {
+  const location = useLocation();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    organization: "",
+    subject: "",
     message: "",
   });
   const [submitted, setSubmitted] = useState(false);
@@ -34,21 +26,16 @@ export default function Contact() {
     setLoading(true);
 
     try {
-      // Simulate form submission
       await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Here you would normally send to your backend
       console.log("Form submitted:", formData);
-
       setSubmitted(true);
       setFormData({
         name: "",
         email: "",
-        organization: "",
+        subject: "",
         message: "",
       });
 
-      // Reset success message after 5 seconds
       setTimeout(() => {
         setSubmitted(false);
       }, 5000);
@@ -80,31 +67,34 @@ export default function Contact() {
             </Link>
 
             <div className="hidden md:flex items-center gap-9">
-              <Link
-                to="/"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+              <Link 
+                to="/" 
+                className={`text-sm font-semibold transition ${location.pathname === "/" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
               >
                 Home
               </Link>
-              <Link
-                to="/features"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+              <Link 
+                to="/features" 
+                className={`text-sm font-semibold transition ${location.pathname === "/features" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
               >
                 Features
               </Link>
-              <Link
-                to="/how-it-works"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+              <Link 
+                to="/how-it-works" 
+                className={`text-sm font-semibold transition ${location.pathname === "/how-it-works" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
               >
                 How It Works
               </Link>
-              <Link
-                to="/about"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+              <Link 
+                to="/about" 
+                className={`text-sm font-semibold transition ${location.pathname === "/about" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
               >
                 About
               </Link>
-              <Link to="/contact" className="text-sm font-semibold text-green-700">
+              <Link 
+                to="/contact" 
+                className={`text-sm font-semibold transition ${location.pathname === "/contact" ? "text-green-700 border-b-2 border-green-700 pb-1" : "text-slate-600 hover:text-green-700"}`}
+              >
                 Contact
               </Link>
             </div>
@@ -117,7 +107,7 @@ export default function Contact() {
                 Login
               </Link>
               <Link
-                to="/login"
+                to="/register"
                 className="px-6 py-2.5 rounded-lg bg-green-700 text-white text-sm font-semibold shadow-lg shadow-green-700/20 hover:bg-green-800 transition"
               >
                 Get Started
@@ -128,21 +118,20 @@ export default function Contact() {
       </header>
 
       {/* HERO SECTION */}
-      <section className="relative min-h-[50vh] pt-[76px] overflow-hidden bg-gradient-to-br from-green-50 via-white to-emerald-50">
-        <div className="absolute -left-40 top-20 w-[500px] h-[500px] bg-green-200/30 rounded-full blur-3xl"></div>
-        <div className="absolute -right-40 bottom-0 w-[600px] h-[600px] bg-emerald-200/30 rounded-full blur-3xl"></div>
+      <section className="relative min-h-[45vh] pt-[76px] overflow-hidden bg-gradient-to-br from-green-100 via-green-50 to-emerald-100">
+        <div className="absolute -left-40 top-20 w-[500px] h-[500px] bg-green-200/40 rounded-full blur-3xl"></div>
+        <div className="absolute -right-40 bottom-0 w-[600px] h-[600px] bg-emerald-200/40 rounded-full blur-3xl"></div>
 
         <div className="relative z-10 max-w-[1400px] mx-auto px-8 lg:px-16 py-16">
-          <div className="max-w-[700px]">
+          <div className="text-center">
             <p className="text-sm font-bold tracking-[0.18em] text-green-700 uppercase mb-5">
               Get in Touch
             </p>
             <h1 className="text-5xl sm:text-6xl font-bold leading-[1.1] text-slate-950 mb-6">
-              Let's Talk About MERIDIAN
+              Contact Us
             </h1>
-            <p className="text-xl text-slate-600 leading-8">
-              Have questions? Want to schedule a demo? Looking for partnership opportunities?
-              We'd love to hear from you. Reach out to our team today.
+            <p className="text-xl text-slate-600 leading-8 max-w-2xl mx-auto">
+              Have questions about MERIDIAN? Our team is here to help. Reach out with any inquiries.
             </p>
           </div>
         </div>
@@ -153,8 +142,8 @@ export default function Contact() {
         <div className="grid lg:grid-cols-3 gap-12">
           {/* CONTACT FORM */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl border border-green-100 p-8 shadow-sm">
-              <h2 className="text-3xl font-bold text-slate-950 mb-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <h2 className="text-3xl font-bold text-slate-950 mb-8">
                 Send us a Message
               </h2>
 
@@ -166,7 +155,7 @@ export default function Contact() {
                       Message Sent Successfully!
                     </h3>
                     <p className="text-sm text-green-800">
-                      Thank you for reaching out. We'll get back to you within 24 hours.
+                      Thank you for reaching out. We'll get back to you shortly.
                     </p>
                   </div>
                 </div>
@@ -205,18 +194,19 @@ export default function Contact() {
                   />
                 </div>
 
-                {/* ORGANIZATION */}
+                {/* SUBJECT */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-900 mb-2">
-                    Organization
+                    Subject *
                   </label>
                   <input
                     type="text"
-                    name="organization"
-                    value={formData.organization}
+                    name="subject"
+                    value={formData.subject}
                     onChange={handleChange}
+                    required
                     className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
-                    placeholder="Hospital Name or Organization"
+                    placeholder="How can we help?"
                   />
                 </div>
 
@@ -232,7 +222,7 @@ export default function Contact() {
                     required
                     rows={6}
                     className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition resize-none"
-                    placeholder="Tell us how MERIDIAN can help your organization..."
+                    placeholder="Please tell us more about your inquiry..."
                   />
                 </div>
 
@@ -256,57 +246,49 @@ export default function Contact() {
           {/* CONTACT INFO */}
           <div className="space-y-6">
             {/* DIRECT CONTACT */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-8 border border-green-100">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-8 border border-green-100 shadow-md hover:shadow-lg transition-shadow duration-300">
               <h3 className="text-xl font-bold text-slate-950 mb-6">
-                Direct Contact
+                Contact Information
               </h3>
 
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {/* EMAIL */}
-                <div className="flex items-start gap-4">
+                <div className="flex gap-4">
                   <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
                     <Mail className="w-5 h-5 text-green-700" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Email</p>
-                    <a
-                      href="mailto:hello@meridian.health"
-                      className="text-green-700 hover:text-green-800 transition"
-                    >
-                      hello@meridian.health
+                    <p className="text-sm font-semibold text-slate-900 mb-1">Email</p>
+                    <a href="mailto:support@meridian.health" className="text-green-700 hover:text-green-800 transition text-sm">
+                      support@meridian.health
                     </a>
                   </div>
                 </div>
 
                 {/* PHONE */}
-                <div className="flex items-start gap-4">
+                <div className="flex gap-4">
                   <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
                     <Phone className="w-5 h-5 text-green-700" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Phone</p>
-                    <a
-                      href="tel:+18005551234"
-                      className="text-green-700 hover:text-green-800 transition"
-                    >
+                    <p className="text-sm font-semibold text-slate-900 mb-1">Phone</p>
+                    <a href="tel:+18005551234" className="text-green-700 hover:text-green-800 transition text-sm">
                       +1 (800) 555-1234
                     </a>
                   </div>
                 </div>
 
                 {/* ADDRESS */}
-                <div className="flex items-start gap-4">
+                <div className="flex gap-4">
                   <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
                     <MapPin className="w-5 h-5 text-green-700" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Address</p>
+                    <p className="text-sm font-semibold text-slate-900 mb-1">Address</p>
                     <p className="text-slate-600 text-sm">
-                      123 Healthcare Plaza
+                      Plot No. 1, MIDC Industrial Area
                       <br />
-                      San Francisco, CA 94107
-                      <br />
-                      United States
+                      Pune, Maharashtra 411013, India
                     </p>
                   </div>
                 </div>
@@ -314,176 +296,123 @@ export default function Contact() {
             </div>
 
             {/* BUSINESS HOURS */}
-            <div className="bg-white rounded-2xl p-8 border border-slate-200">
-              <h3 className="text-xl font-bold text-slate-950 mb-6">
-                Business Hours
-              </h3>
+            <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-md hover:shadow-lg transition-shadow duration-300">
+              <div className="flex items-center gap-3 mb-6">
+                <Clock className="w-5 h-5 text-green-700" />
+                <h3 className="text-xl font-bold text-slate-950">
+                  Business Hours
+                </h3>
+              </div>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Monday - Friday</span>
-                  <span className="font-semibold text-slate-900">9 AM - 6 PM PT</span>
+                  <span className="text-slate-600">Mon - Fri</span>
+                  <span className="font-semibold text-slate-900">9 AM - 6 PM IST</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-600">Saturday</span>
-                  <span className="font-semibold text-slate-900">10 AM - 4 PM PT</span>
+                  <span className="font-semibold text-slate-900">10 AM - 2 PM IST</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-600">Sunday</span>
                   <span className="font-semibold text-slate-900">Closed</span>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 mt-4 pt-4 border-t border-slate-200">
-                For urgent inquiries, please call our emergency line during business hours.
+            </div>
+
+            {/* RESPONSE TIME */}
+            <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-md hover:shadow-lg transition-shadow duration-300">
+              <div className="flex items-center gap-3 mb-3">
+                <MessageCircle className="w-5 h-5 text-green-700" />
+                <h3 className="font-semibold text-slate-900">
+                  Response Time
+                </h3>
+              </div>
+              <p className="text-sm text-slate-600">
+                We aim to respond to all inquiries within 24 business hours.
               </p>
             </div>
-
-            {/* SOCIAL LINKS */}
-            <div className="bg-white rounded-2xl p-8 border border-slate-200">
-              <h3 className="text-xl font-bold text-slate-950 mb-6">Follow Us</h3>
-              <div className="flex gap-3">
-                {[
-                  { Icon: Globe, href: "#", label: "Website" },
-                  { Icon: MessageCircle, href: "#", label: "Chat" },
-                  { Icon: Share2, href: "#", label: "Share" },
-                ].map(({ Icon, href, label }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-green-100 hover:text-green-700 transition"
-                    title={label}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ SECTION */}
-      <section className="bg-slate-50 py-20">
-        <div className="max-w-[1400px] mx-auto px-8 lg:px-16">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-slate-950 mb-4">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-lg text-slate-600">
-              Can't find what you're looking for? Check our FAQ section
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {[
-              {
-                q: "How long does implementation typically take?",
-                a: "Our standard implementation takes 2-4 weeks depending on your organization's size and existing systems. We provide a dedicated implementation team throughout the process.",
-              },
-              {
-                q: "Is MERIDIAN HIPAA compliant?",
-                a: "Yes, MERIDIAN is fully HIPAA compliant with enterprise-grade security, end-to-end encryption, and regular security audits to protect patient data.",
-              },
-              {
-                q: "Can MERIDIAN integrate with our existing EHR?",
-                a: "MERIDIAN integrates seamlessly with most major EHR systems including Epic, Cerner, and others. Contact our team for specific integration details.",
-              },
-              {
-                q: "What kind of training is provided?",
-                a: "We provide comprehensive onboarding training, ongoing support, and access to our knowledge base. Our support team is available during business hours.",
-              },
-            ].map((faq, idx) => (
-              <div key={idx} className="bg-white rounded-2xl p-6 border border-slate-200">
-                <h3 className="font-bold text-slate-950 mb-3">{faq.q}</h3>
-                <p className="text-slate-600 text-sm leading-7">{faq.a}</p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
 
       {/* CTA SECTION */}
-      <section className="relative overflow-hidden bg-gradient-to-r from-green-700 via-emerald-600 to-teal-600 py-20">
-        <div className="absolute inset-0 opacity-10">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 1px)",
-              backgroundSize: "30px 30px",
-            }}
-          ></div>
-        </div>
-
-        <div className="relative z-10 max-w-[1400px] mx-auto px-8 lg:px-16 text-center">
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+      <section className="bg-gradient-to-br from-green-50 via-white to-emerald-50 py-20 border-t border-slate-200">
+        <div className="max-w-[1400px] mx-auto px-8 lg:px-16 text-center">
+          <h2 className="text-3xl font-bold text-slate-950 mb-4">
             Ready to Get Started?
           </h2>
-          <p className="text-xl text-white/90 max-w-2xl mx-auto mb-8">
-            Our team is ready to help you transform your clinical practice with MERIDIAN.
+          <p className="text-lg text-slate-600 mb-10 max-w-2xl mx-auto">
+            Join healthcare organizations transforming patient care with MERIDIAN.
           </p>
-
           <Link
             to="/register"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-green-700 font-bold shadow-2xl hover:bg-green-50 transition group"
+            className="inline-flex items-center gap-2 px-10 py-4 rounded-xl bg-green-700 text-white font-bold shadow-lg shadow-green-700/30 hover:bg-green-800 hover:shadow-xl hover:shadow-green-700/40 transition-all duration-300 transform hover:scale-105"
           >
-            Start Your Free Trial
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
+            Get Started
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-slate-900 text-white py-12">
-        <div className="max-w-[1400px] mx-auto px-8 lg:px-16">
-          <div className="grid md:grid-cols-4 gap-8 mb-12">
+      <section
+        id="footer"
+        className="bg-green-800 text-white py-20 px-8 lg:px-16 border-t border-green-700"
+      >
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-12 mb-12">
+            {/* COMPANY INFO */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-green-600 flex items-center justify-center">
-                  <span className="text-lg font-bold">+</span>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-lg">
+                  <span className="text-green-800 text-lg font-bold">+</span>
                 </div>
-                <span className="font-bold text-lg">MERIDIAN</span>
+                <h3 className="text-2xl font-bold">MERIDIAN</h3>
               </div>
-              <p className="text-slate-400">
-                Clinical Intelligence for Safer Care
+              <p className="text-green-100 text-sm leading-6">
+                Clinical intelligence for safer, more informed healthcare decisions.
               </p>
             </div>
-            {[
-              {
-                title: "Product",
-                links: ["Features", "Pricing", "Security"],
-              },
-              {
-                title: "Company",
-                links: ["About", "Blog", "Careers"],
-              },
-              {
-                title: "Support",
-                links: ["Documentation", "Contact", "Status"],
-              },
-            ].map((section, idx) => (
-              <div key={idx}>
-                <h3 className="font-bold mb-4">{section.title}</h3>
-                <ul className="space-y-2">
-                  {section.links.map((link, i) => (
-                    <li key={i}>
-                      <a
-                        href="#"
-                        className="text-slate-400 hover:text-white transition"
-                      >
-                        {link}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+
+            {/* PRODUCT */}
+            <div>
+              <h4 className="font-bold text-sm uppercase tracking-wider mb-4">Product</h4>
+              <ul className="space-y-2 text-green-100 text-sm">
+                <li><Link to="/features" className="hover:text-white transition">Features</Link></li>
+                <li><Link to="/how-it-works" className="hover:text-white transition">How It Works</Link></li>
+                <li><Link to="/about" className="hover:text-white transition">About</Link></li>
+              </ul>
+            </div>
+
+            {/* COMPANY */}
+            <div>
+              <h4 className="font-bold text-sm uppercase tracking-wider mb-4">Company</h4>
+              <ul className="space-y-2 text-green-100 text-sm">
+                <li><Link to="/contact" className="hover:text-white transition">Contact Us</Link></li>
+                <li><a href="#" className="hover:text-white transition">Blog</a></li>
+                <li><a href="#" className="hover:text-white transition">Careers</a></li>
+              </ul>
+            </div>
+
+            {/* LEGAL */}
+            <div>
+              <h4 className="font-bold text-sm uppercase tracking-wider mb-4">Legal</h4>
+              <ul className="space-y-2 text-green-100 text-sm">
+                <li><a href="#" className="hover:text-white transition">Privacy Policy</a></li>
+                <li><a href="#" className="hover:text-white transition">Terms of Service</a></li>
+                <li><a href="#" className="hover:text-white transition">Security</a></li>
+              </ul>
+            </div>
           </div>
 
-          <div className="border-t border-slate-800 pt-8 text-center text-slate-400">
-            <p>&copy; 2024 MERIDIAN. All rights reserved.</p>
+          {/* DIVIDER */}
+          <div className="border-t border-green-700 pt-8 text-center">
+            <p className="text-green-200 text-sm">
+              &copy; 2024 MERIDIAN. All rights reserved.
+            </p>
           </div>
         </div>
-      </footer>
+      </section>
     </div>
   );
 }

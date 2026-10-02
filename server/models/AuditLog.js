@@ -29,6 +29,8 @@ const auditLogSchema = new mongoose.Schema(
         "SAFETY_ANALYSIS_PERFORMED",
         "SAFETY_ALERT_GENERATED",
         "CHATBOT_USED",
+        "DASHBOARD_VIEWED",
+        "PATIENT_LIST_VIEWED",
         "LOGOUT",
       ],
       required: true,

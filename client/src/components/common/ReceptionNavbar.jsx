@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Bell, CalendarDays, ChevronDown, ClipboardList, FileUp, Grid2X2, LogOut, Menu, Stethoscope, UserRound, UsersRound, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { API_BASE_URL } from "../../api/config";
 
 const navItems = [
   ["Dashboard", "/reception/dashboard", Grid2X2],
@@ -21,9 +22,7 @@ export default function ReceptionNavbar() {
   const name = user?.name || user?.displayName || "Receptionist";
 
   useEffect(() => {
-    const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) return;
-    fetch("http://localhost:5000/api/notifications", { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_BASE_URL || "http://localhost:5000"}/api/notifications`, { credentials: "include" })
       .then((response) => response.ok ? response.json() : [])
       .then((items) => setUnread(items.filter((item) => !item.read).length))
       .catch(() => setUnread(0));

@@ -1,15 +1,10 @@
 const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-function headers() {
-  const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     credentials: "include",
-    headers: { ...headers(), ...(options.headers || {}) },
+    headers: { ...(options.headers || {}) },
   });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.message || "Unable to load clinical reports.");
   return response;
@@ -35,6 +30,12 @@ export async function uploadReport(file, patientId, title = "") {
   return response.json();
 }
 
+export async function generateReportSummary(reportId) {
+  if (!reportId) throw new Error("This report has no server ID.");
+  const response = await request(`/api/reports/${encodeURIComponent(reportId)}/summary`, { method: "POST" });
+  return response.json();
+}
+
 export async function downloadReport(report) {
   const reportId = report?._id || report?.reportId || report?.id;
   if (!reportId) throw new Error("This report is not available for download yet.");
@@ -44,7 +45,9 @@ export async function downloadReport(report) {
   const link = document.createElement("a");
   link.href = url;
   link.download = report.fileName || report.name || "clinical-report";
+  document.body.appendChild(link);
   link.click();
+  link.remove();
   URL.revokeObjectURL(url);
 }
 

@@ -19,6 +19,18 @@ const reportSchema = new mongoose.Schema(
       required: true,
     },
 
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    uploadedByRole: {
+      type: String,
+      enum: ["patient", "doctor", "receptionist"],
+      default: "patient",
+    },
+
     name: {
       type: String,
       required: true,
@@ -54,10 +66,38 @@ const reportSchema = new mongoose.Schema(
       enum: [
         "normal",
         "abnormal",
+        "critical",
         "completed",
         "pending",
       ],
       default: "pending",
+    },
+
+    reviewStatus: {
+      type: String,
+      enum: ["pending", "viewed", "reviewed"],
+      default: "pending",
+    },
+
+    clinicalResult: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    resultStatus: {
+      type: String,
+      enum: ["not_specified", "normal", "abnormal", "critical"],
+      default: "not_specified",
+    },
+
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    reviewedAt: {
+      type: Date,
     },
 
     date: {
@@ -86,6 +126,11 @@ const reportSchema = new mongoose.Schema(
     },
 
     extractedText: {
+      type: String,
+      default: "",
+    },
+
+    aiSummary: {
       type: String,
       default: "",
     },

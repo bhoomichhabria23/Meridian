@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../../components/common/Layout'
 import api from '../../api/axios'
-import { useAuth } from '../../context/AuthContext'
 import { Empty, PageLoader } from '../../components/common/UI'
-import { Search, Stethoscope } from 'lucide-react'
+import { Search, Stethoscope, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 const LINKS = [
   { to: '/reception/dashboard', label: 'Dashboard', icon: '🏥' },
@@ -17,7 +17,6 @@ const LINKS = [
 
 export default function ReceptionDoctors() {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const [doctors, setDoctors] = useState([])
   const [filteredDoctors, setFilteredDoctors] = useState([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +47,7 @@ export default function ReceptionDoctors() {
       const filtered = doctors.filter(
         (d) =>
           d.userId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (d.specialty || d.specialization || d.userId?.specialization || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
           d.userId?.email?.toLowerCase().includes(searchTerm.toLowerCase())
       )
       setFilteredDoctors(filtered)
@@ -56,6 +55,18 @@ export default function ReceptionDoctors() {
       setFilteredDoctors(doctors)
     }
   }, [searchTerm, doctors])
+
+  const deleteDoctor = async (doctor) => {
+    const name = doctor.userId?.name || doctor.name || 'this doctor'
+    if (!window.confirm(`Delete ${name}? This removes the registered doctor record.`)) return
+    try {
+      await api.delete(`/api/doctors/${doctor._id}`)
+      setDoctors((current) => current.filter((item) => item._id !== doctor._id))
+      toast.success('Doctor deleted successfully.')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Unable to delete doctor.')
+    }
+  }
 
   if (loading) return <Layout links={LINKS}><PageLoader /></Layout>
 
@@ -96,9 +107,9 @@ export default function ReceptionDoctors() {
                 <div className="bg-gradient-to-r from-teal-600 to-teal-700 px-6 py-6">
                   <div className="flex items-center gap-3 mb-2">
                     <Stethoscope className="w-6 h-6 text-white" />
-                    <h3 className="text-lg font-semibold text-white">{doctor.name}</h3>
+                    <h3 className="text-lg font-semibold text-white">{doctor.userId?.name || doctor.name || 'Registered doctor'}</h3>
                   </div>
-                  <p className="text-teal-100 text-sm">{doctor.specialization}</p>
+                  <p className="text-teal-100 text-sm">{doctor.specialty || doctor.specialization || doctor.userId?.specialization || 'General Physician'}</p>
                 </div>
 
                 {/* Content */}
@@ -123,17 +134,22 @@ export default function ReceptionDoctors() {
                   {/* Specialty */}
                   <div className="mb-4 bg-slate-50 rounded p-3">
                     <p className="text-center">
-                      <span className="text-sm font-semibold text-slate-900">{doctor.specialization || doctor.userId?.specialization || 'Specialization not recorded'}</span>
+                        <span className="text-sm font-semibold text-slate-900">{doctor.specialty || doctor.specialization || doctor.userId?.specialization || 'General Physician'}</span>
                     </p>
                   </div>
 
                   {/* Actions */}
-                  <button
-                    onClick={() => navigate(`/reception/appointments/new?doctor=${doctor._id}`)}
-                    className="w-full bg-blue-700 hover:bg-blue-800 text-white py-2 rounded font-medium text-sm transition"
-                  >
-                    Schedule Appointment
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => navigate(`/reception/appointments/new?doctor=${doctor._id}`)}
+                      className="flex-1 rounded-xl bg-[#25854d] py-3 text-sm font-bold text-white transition hover:bg-[#176b3d]"
+                    >
+                      Schedule Appointment
+                    </button>
+                    <button type="button" onClick={() => deleteDoctor(doctor)} title="Delete doctor" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#dfeee3] text-[#789083] transition hover:bg-[#f1f8f3] hover:text-[#527261]">
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

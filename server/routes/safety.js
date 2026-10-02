@@ -1,13 +1,57 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const Prescription = require("../models/Prescription");
+const Patient = require("../models/Patient");
 const SafetyAlert = require("../models/SafetyAlert");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const SafetyEngine = require("../services/safetyEngine");
+const GroqService = require("../services/groqService");
 const { verifyToken } = require("../middleware/auth");
 
 const router = express.Router();
+
+router.post("/medication-review", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "doctor") {
+      return res.status(403).json({ message: "Only doctors can request medication reviews" });
+    }
+
+    const { drugName, patientId } = req.body || {};
+    if (!drugName || !patientId) {
+      return res.status(400).json({ message: "Drug name and patient are required" });
+    }
+
+    const patient = await Patient.findById(patientId).select("age gender bloodGroup allergies conditions userId").populate("userId", "name").lean();
+    if (!patient) return res.status(404).json({ message: "Patient not found" });
+
+    const prescriptions = await Prescription.find({ patientId: patient.userId?._id || patient.userId })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("medications diagnosis")
+      .lean();
+
+    const activeMedications = prescriptions.flatMap((prescription) => (prescription.medications || []).map((medication) => ({
+      name: medication.name,
+      dosage: medication.dosage,
+      frequency: medication.frequency,
+    })));
+
+    const review = await GroqService.analyzeMedication(drugName, {
+      age: patient.age,
+      gender: patient.gender,
+      bloodGroup: patient.bloodGroup,
+      allergies: patient.allergies || [],
+      conditions: patient.conditions || [],
+      currentMedications: activeMedications,
+    });
+
+    res.json(review);
+  } catch (error) {
+    console.error("AI medication review error:", error);
+    res.status(503).json({ message: "AI medication review is unavailable right now. Verify this medication with an authoritative clinical checker." });
+  }
+});
 
 /**
  * GET /api/safety/patient/:patientId/alerts

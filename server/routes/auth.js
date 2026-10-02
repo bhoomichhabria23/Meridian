@@ -133,6 +133,7 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       {
         id: user._id.toString(),
+        uid: user.firebaseUid || user._id.toString(),
         role: user.role,
       },
       process.env.JWT_SECRET,
@@ -164,6 +165,7 @@ router.post("/login", async (req, res) => {
       message: "Login successful.",
       user: {
         id: user._id,
+        uid: user.firebaseUid || user._id.toString(),
         name: user.name,
         phone: user.phone,
         email: user.email,
@@ -222,6 +224,7 @@ router.get("/me", async (req, res) => {
 
     return res.status(200).json({
       id: user._id,
+      uid: user.firebaseUid || user._id.toString(),
       name: user.name,
       phone: user.phone,
       email: user.email,

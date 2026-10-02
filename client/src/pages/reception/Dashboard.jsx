@@ -3,7 +3,7 @@ import React, {
   useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../../api/axios";
 import toast from "react-hot-toast";
 import Spinner from "../../components/common/Spinner";
 import StatCard from "../../components/common/StatCard";
@@ -41,18 +41,9 @@ const ReceptionistDashboard = () => {
     async () => {
       try {
         setLoading(true);
-        const token =
-          localStorage.getItem(
-            "token"
-          );
         const response =
-          await axios.get(
-            "/api/receptionist/dashboard",
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
+          await api.get(
+            "/api/receptionist/dashboard"
           );
 
         if (

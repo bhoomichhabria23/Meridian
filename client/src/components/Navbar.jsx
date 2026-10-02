@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Activity, Bell, Bot, CalendarDays, ClipboardList, FileText, FlaskConical, Grid2X2, LogOut, Pill, UserRound } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { API_BASE_URL } from "../api/config";
 
 const links = [
   ["Dashboard", "/patient/dashboard", Grid2X2],
@@ -22,9 +23,7 @@ export default function Navbar() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   useEffect(() => {
-    const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) return;
-    fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/notifications`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_BASE_URL || "http://localhost:5000"}/api/notifications`, { credentials: "include" })
       .then((response) => response.ok ? response.json() : [])
       .then((notifications) => setUnreadNotifications(notifications.filter((notification) => !notification.read).length))
       .catch(() => setUnreadNotifications(0));

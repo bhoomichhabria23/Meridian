@@ -5,7 +5,7 @@ import React, {
 import {
   useNavigate,
 } from "react-router-dom";
-import axios from "axios";
+import api from "../../api/axios";
 import toast from "react-hot-toast";
 import Spinner from "../../components/common/Spinner";
 
@@ -36,18 +36,9 @@ const PatientSearch = () => {
     setHasSearched(true);
 
     try {
-      const token =
-        localStorage.getItem(
-          "token"
-        );
       const response =
-        await axios.get(
-          `/api/doctors/patients/search?query=${encodeURIComponent(searchQuery)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
+        await api.get(
+          `/api/doctors/patients/search?query=${encodeURIComponent(searchQuery)}`
         );
 
       if (

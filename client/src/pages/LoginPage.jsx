@@ -124,23 +124,13 @@ export default function LoginPage() {
         id: serverUser.id,
         uid: user.uid,
         email: serverUser.email || user.email,
+        phone: serverUser.phone || "",
         name: serverUser.name || username,
         displayName: username,
         role: authenticatedRole,
       };
 
-      localStorage.setItem(
-        "user",
-        JSON.stringify(storedUser)
-      );
-
-      localStorage.setItem("role", authenticatedRole);
-      setUser({
-        ...storedUser,
-        token:
-          localStorage.getItem("token") ||
-          localStorage.getItem("auth_token"),
-      });
+      setUser(storedUser);
       toast.success("Login successful. Welcome back!");
 
       // =====================================================
@@ -274,35 +264,35 @@ export default function LoginPage() {
 
               <Link
                 to="/"
-                className="text-sm text-slate-600 transition hover:text-green-700"
+                className="text-sm font-bold text-slate-600 transition hover:text-green-700"
               >
                 Home
               </Link>
 
               <a
                 href="/#features"
-                className="text-sm text-slate-600 transition hover:text-green-700"
+                className="text-sm font-bold text-slate-600 transition hover:text-green-700"
               >
                 Features
               </a>
 
               <a
                 href="/#how-it-works"
-                className="text-sm text-slate-600 transition hover:text-green-700"
+                className="text-sm font-bold text-slate-600 transition hover:text-green-700"
               >
                 How It Works
               </a>
 
               <a
                 href="/#about"
-                className="text-sm text-slate-600 transition hover:text-green-700"
+                className="text-sm font-bold text-slate-600 transition hover:text-green-700"
               >
                 About
               </a>
 
               <a
                 href="/#contact"
-                className="text-sm text-slate-600 transition hover:text-green-700"
+                className="text-sm font-bold text-slate-600 transition hover:text-green-700"
               >
                 Contact
               </a>
@@ -399,7 +389,7 @@ export default function LoginPage() {
 
               {/* IMAGE AREA */}
 
-              <div className="relative flex flex-1 items-center justify-center px-14">
+              <div className="relative mt-8 flex flex-1 items-center justify-center px-14">
 
                 <div className="absolute h-[440px] w-[440px] rounded-full bg-gradient-to-br from-emerald-200/50 to-teal-100/20 blur-[8px]" />
 
@@ -491,7 +481,7 @@ export default function LoginPage() {
 
               {/* BOTTOM CONTENT */}
 
-              <div className="relative z-20 px-12 pb-9">
+              <div className="relative z-20 mt-8 px-12 pb-9">
 
                 <h1 className="max-w-[560px] text-[36px] font-bold leading-[1.12] tracking-tight text-slate-800">
 

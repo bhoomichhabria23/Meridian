@@ -1,9 +1,12 @@
 import React from 'react'
 import Sidebar from './Sidebar'
 import ReceptionNavbar from './ReceptionNavbar'
+import DoctorNavbar from './DoctorNavbar'
 
 export default function Layout({ children, links }) {
   const isReceptionLayout = links?.some((link) => link.to?.startsWith('/reception'))
+  const isDoctorLayout = links?.some((link) => link.to?.startsWith('/doctor'))
+
   if (isReceptionLayout) {
     return (
       <div className="min-h-screen bg-[#f5faf7]">
@@ -14,6 +17,18 @@ export default function Layout({ children, links }) {
       </div>
     )
   }
+
+  if (isDoctorLayout) {
+    return (
+      <div className="min-h-screen bg-[#f4fbf6] text-[#183a28]">
+        <DoctorNavbar />
+        <main className="mx-auto max-w-[1600px] animate-fade-in px-4 py-6 md:px-8 md:py-8">
+          {children}
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar links={links} />

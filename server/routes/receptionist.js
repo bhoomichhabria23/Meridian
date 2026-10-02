@@ -8,6 +8,7 @@ const Appointment =
 const Patient =
   require("../models/Patient");
 const User = require("../models/User");
+const Doctor = require("../models/Doctor");
 const AuditLog =
   require("../models/AuditLog");
 
@@ -44,10 +45,46 @@ router.get(
         })
           .populate(
             "patientId",
-            "name phone"
+            "name phone userId"
           )
-          .populate("doctorId", "name")
+          .populate({ path: "patientId", populate: { path: "userId", select: "name email phone" } })
+          .populate("doctorId", "specialty userId")
+          .populate({ path: "doctorId", populate: { path: "userId", select: "name email phone specialization" } })
           .limit(10);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const activityStart = new Date(today);
+      activityStart.setDate(activityStart.getDate() - 6);
+      const activityEnd = new Date(today);
+      activityEnd.setDate(activityEnd.getDate() + 1);
+      const recentAppointments = await Appointment.find({
+        date: { $gte: activityStart, $lt: activityEnd },
+      }).select("date status").lean();
+      const appointmentActivity = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(activityStart);
+        date.setDate(activityStart.getDate() + index);
+        const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+        return {
+          date: dateKey,
+          confirmed: 0,
+          pending: 0,
+          completed: 0,
+          cancelled: 0,
+          rescheduled: 0,
+          total: 0,
+        };
+      });
+      const activityByDate = new Map(appointmentActivity.map((day) => [day.date, day]));
+      recentAppointments.forEach((appointment) => {
+        const date = new Date(appointment.date);
+        const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+        const day = activityByDate.get(dateKey);
+        if (!day) return;
+        const status = String(appointment.status || "pending").toLowerCase();
+        if (Object.hasOwn(day, status) && status !== "total") day[status] += 1;
+        day.total += 1;
+      });
 
       const pendingAppointments =
         await Appointment.find({
@@ -55,15 +92,12 @@ router.get(
         })
           .populate(
             "patientId",
-            "name"
+            "name userId"
           )
+          .populate({ path: "patientId", populate: { path: "userId", select: "name email phone" } })
           .limit(10);
 
-      const availableDoctors =
-        await User.countDocuments({
-          role: "doctor",
-          isActive: true,
-        });
+      const availableDoctors = await Doctor.countDocuments();
 
       await AuditLog.create({
         userId: req.user.id,
@@ -83,6 +117,7 @@ router.get(
           availableDoctorsCount:
             availableDoctors,
           todaysAppointments,
+          appointmentActivity,
           pendingAppointments,
         },
       });
@@ -182,9 +217,11 @@ router.get(
         await Appointment.find(query)
           .populate(
             "patientId",
-            "name phone"
+            "name phone userId"
           )
-          .populate("doctorId", "name")
+          .populate({ path: "patientId", populate: { path: "userId", select: "name email phone" } })
+          .populate("doctorId", "specialty userId")
+          .populate({ path: "doctorId", populate: { path: "userId", select: "name email phone specialization" } })
           .sort({ date: -1 })
           .skip(skip)
           .limit(

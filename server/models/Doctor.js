@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const DoctorSchema = new mongoose.Schema({
   userId:       { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   specialty:    { type: String },
-  licenseNo:    { type: String, unique: true },
+  licenseNo:    { type: String, unique: true, sparse: true },
   hospital:     { type: String },
   department:   { type: String },
   workingHours: {

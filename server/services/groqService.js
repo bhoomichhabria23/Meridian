@@ -8,6 +8,47 @@ const groq = new Groq({
 const GROQ_MODEL = process.env.GROQ_MODEL || "mixtral-8x7b-32768";
 
 class GroqService {
+  static async analyzeMedication(drugName, patientContext) {
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error("GROQ_API_KEY not configured");
+    }
+
+    const response = await groq.chat.completions.create({
+      reasoning_format: "hidden",
+      model: GROQ_MODEL,
+      temperature: 0.1,
+      max_tokens: 700,
+      messages: [
+        {
+          role: "system",
+          content: `You are a clinical decision-support assistant for a doctor. Review one proposed medication against the supplied patient context. Do not prescribe, diagnose, or invent evidence. Return exactly one compact JSON object with this shape: {"severity":"safe|caution|danger|unknown","detail":"short explanation","interactions":["short concern"]}. Return JSON only, with no markdown, markers, reasoning, or extra text. Use unknown only when the drug or patient context cannot be evaluated. Be conservative and tell the doctor to verify with an authoritative clinical checker when evidence is incomplete.`,
+        },
+        {
+          role: "user",
+          content: JSON.stringify({ drugName, patientContext }),
+        },
+      ],
+    });
+
+    const content = String(response.choices?.[0]?.message?.content || "{}");
+    const jsonContent = content
+      .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      .replace(/```json|```/gi, "")
+      .trim();
+    const markedContent = jsonContent.match(/BEGIN_JSON\s*([\s\S]*?)\s*END_JSON/i)?.[1];
+    const responseContent = markedContent || jsonContent;
+    const jsonMatch = responseContent.match(/\{[\s\S]*?"severity"\s*:\s*"(?:safe|caution|danger|unknown)"[\s\S]*?\}/i);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseContent);
+    if (!parsed) throw new Error("Medication review returned invalid JSON");
+    const allowedSeverities = ["safe", "caution", "danger", "unknown"];
+
+    return {
+      severity: allowedSeverities.includes(parsed.severity) ? parsed.severity : "unknown",
+      detail: String(parsed.detail || "AI review returned no explanation."),
+      interactions: Array.isArray(parsed.interactions) ? parsed.interactions.map(String) : [],
+    };
+  }
+
   /**
    * Send message to Groq API with context
    */

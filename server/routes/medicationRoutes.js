@@ -4,6 +4,8 @@ const axios = require("axios");
 
 const Medication = require("../models/Medication");
 const Patient = require("../models/Patient");
+const Doctor = require("../models/Doctor");
+const Appointment = require("../models/Appointment");
 const Reminder = require("../models/Reminder");
 const Notification = require("../models/Notification");
 const authMiddleware = require("../middleware/authMiddleware");
@@ -19,6 +21,37 @@ function nextDoseDate(doseTime) {
     date.setHours(date.getHours() + 1, 0, 0, 0);
   }
   return date;
+}
+
+function dosesPerDay(frequency) {
+  const value = String(frequency || "").toLowerCase();
+  if (/(twice|2\s*(?:times|x)?)/.test(value)) return 2;
+  if (/(thrice|three times|3\s*(?:times|x)?)/.test(value)) return 3;
+  if (/(four times|4\s*(?:times|x)?)/.test(value)) return 4;
+  return 1;
+}
+
+function reminderDates(startDate, endDate, frequency, doseTime) {
+  const start = startDate ? new Date(startDate) : new Date();
+  const end = endDate ? new Date(endDate) : new Date(start);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [];
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+  const count = dosesPerDay(frequency);
+  const dates = [];
+  const [hours, minutes] = String(doseTime || "09:00").split(":").map(Number);
+  const firstHour = Number.isInteger(hours) ? hours : 9;
+  const firstMinute = Number.isInteger(minutes) ? minutes : 0;
+
+  for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+    for (let dose = 0; dose < count; dose += 1) {
+      const reminderDate = new Date(day);
+      reminderDate.setHours(firstHour + Math.floor((dose * 24) / count), firstMinute, 0, 0);
+      dates.push(reminderDate);
+    }
+  }
+  return dates;
 }
 
 async function resolveRxCUI(name) {
@@ -73,15 +106,16 @@ router.post("/", authMiddleware, async (req, res) => {
       name, dosage, frequency, timing, nextDose: doseTime || "", reminder: Boolean(reminder), startDate, endDate, description, condition, type,
     });
     if (Boolean(reminder)) {
-      const reminderDate = nextDoseDate(doseTime);
-      await Reminder.create({
-        userId: ownerId,
-        title: `Take ${medication.name}`,
-        type: "medication",
-        date: reminderDate,
-        description: `${medication.dosage}${medication.frequency ? `, ${medication.frequency}` : ""}`,
-        priority: "medium",
-      });
+      const dates = reminderDates(startDate, endDate, frequency, doseTime);
+      const reminderDate = dates[0] || nextDoseDate(doseTime);
+      await Reminder.insertMany((dates.length ? dates : [reminderDate]).map((date) => ({
+          userId: ownerId,
+          title: `Take ${medication.name}`,
+          type: "medication",
+          date,
+          description: `${medication.dosage}${medication.frequency ? `, ${medication.frequency}` : ""}`,
+          priority: "medium",
+        })));
       await Notification.create({
         userId: ownerId,
         title: "Medication reminder enabled",
@@ -172,6 +206,55 @@ router.post(
     }
   }
 );
+
+router.patch("/:id/stop", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "doctor") {
+      return res.status(403).json({ message: "Only the patient's doctor can stop a medication." });
+    }
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return res.status(400).json({ message: "A reason is required to stop this medication." });
+
+    const doctor = await Doctor.findOne({ userId: req.user.id }).select("_id").lean();
+    if (!doctor) return res.status(403).json({ message: "Doctor profile not found." });
+
+    const medication = await Medication.findById(req.params.id);
+    if (!medication) return res.status(404).json({ message: "Medication not found." });
+    if (medication.status !== "active") {
+      return res.status(409).json({ message: "Only active medications can be stopped." });
+    }
+
+    const patient = await Patient.findOne({
+      $or: [
+        { userId: medication.patientId },
+        { _id: medication.patientId },
+      ],
+    }).select("_id userId assignedDoctors").lean();
+    if (!patient) return res.status(404).json({ message: "Patient not found." });
+
+    const doctorIds = [doctor._id, req.user.id];
+    const patientIds = [patient._id, patient.userId, medication.patientId];
+    const assigned = (patient.assignedDoctors || []).some((id) => String(id) === String(doctor._id));
+    const hasCareAppointment = await Appointment.exists({
+      doctorId: { $in: doctorIds },
+      patientId: { $in: patientIds },
+    });
+    if (!assigned && !hasCareAppointment) {
+      return res.status(403).json({ message: "You do not have a care relationship with this patient." });
+    }
+
+    medication.status = "stopped";
+    medication.stoppedReason = reason;
+    medication.stoppedAt = new Date();
+    medication.stoppedBy = req.user.id;
+    await medication.save();
+
+    res.json({ message: "Medication stopped and reason recorded.", medication });
+  } catch (error) {
+    console.error("Stop medication error:", error);
+    res.status(500).json({ message: "Unable to stop medication." });
+  }
+});
 
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {

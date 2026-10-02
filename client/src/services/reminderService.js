@@ -1,12 +1,11 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-function auth() {
-  const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function request(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers: { ...auth(), "Content-Type": "application/json", ...(options.headers || {}) } });
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+  });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.message || "Unable to update reminders.");
   return response.json();
 }

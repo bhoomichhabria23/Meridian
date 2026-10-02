@@ -9,6 +9,7 @@ const Appointment  = require('../models/Appointment');
 const Medication   = require('../models/Medication');
 const mongoose      = require('mongoose');
 const User          = require('../models/User');
+const Doctor        = require('../models/Doctor');
 
 async function findPatientByIdentity(id) {
   if (mongoose.Types.ObjectId.isValid(id)) {
@@ -21,11 +22,33 @@ async function findPatientByIdentity(id) {
 router.get('/', verifyToken, async (req, res) => {
   try {
     const filter = req.user.role === 'patient' && mongoose.Types.ObjectId.isValid(req.user.id) ? { userId: req.user.id } : {};
-    let patients = await Patient.find(filter).populate('userId');
-    if (req.query.search) {
-      const s = req.query.search.toLowerCase();
-      patients = patients.filter(p => p.userId && p.userId.name && p.userId.name.toLowerCase().includes(s));
+
+    if (req.user.role === 'doctor') {
+      const doctor = await Doctor.findOne({ userId: req.user.id }).select('_id').lean();
+      if (!doctor) return res.json([]);
+
+      const approvedAppointments = await Appointment.find({
+        doctorId: doctor._id,
+        status: 'confirmed',
+      }).distinct('patientId');
+      filter.$or = [
+        { _id: { $in: approvedAppointments } },
+        { userId: { $in: approvedAppointments } },
+      ];
     }
+    
+    // Server-side search filtering for better performance
+    if (req.query.search) {
+      const searchPattern = new RegExp(req.query.search, 'i');
+      const matchingUsers = await User.find({ name: searchPattern }).select('_id').lean();
+      const userIds = matchingUsers.map(u => u._id);
+      filter.userId = { $in: userIds };
+    }
+    
+    const patients = await Patient.find(filter)
+      .populate('userId', 'name email phone createdAt')
+      .lean();
+    
     res.json(patients);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -35,8 +58,9 @@ router.get('/', verifyToken, async (req, res) => {
 router.get('/:id', verifyToken, async (req, res) => {
   try {
     const patient = await findPatientByIdentity(req.params.id);
-    if (patient) await patient.populate('userId assignedDoctors');
     if (!patient) return res.status(404).json({ message: 'Patient not found' });
+    
+    await patient.populate('userId assignedDoctors');
     res.json(patient);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -47,6 +71,20 @@ router.put('/:id', verifyToken, async (req, res) => {
   try {
     const patient = await Patient.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(patient);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete('/:id', verifyToken, requireRole('receptionist'), async (req, res) => {
+  try {
+    const patient = await Patient.findById(req.params.id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    await Patient.deleteOne({ _id: patient._id });
+    if (patient.userId) await User.deleteOne({ _id: patient.userId, role: 'patient' });
+
+    res.json({ message: 'Patient deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

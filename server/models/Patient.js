@@ -25,6 +25,8 @@ const PatientSchema = new mongoose.Schema({
     phone:        { type: String }
   },
   address: { type: String, default: '' }
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('Patient', PatientSchema);

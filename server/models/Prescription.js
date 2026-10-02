@@ -1,5 +1,40 @@
 const mongoose = require("mongoose");
 
+const prescriptionAttachmentSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      default: "attachment",
+    },
+    originalName: {
+      type: String,
+      default: "",
+    },
+    mimeType: {
+      type: String,
+      default: "application/octet-stream",
+    },
+    size: {
+      type: Number,
+      default: 0,
+    },
+    url: {
+      type: String,
+      default: "",
+    },
+    type: {
+      type: String,
+      enum: ["file", "text"],
+      default: "file",
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }
+);
+
 const prescriptionMedicationSchema =
   new mongoose.Schema(
     {
@@ -82,6 +117,10 @@ const prescriptionSchema = new mongoose.Schema(
 
     medications: [
       prescriptionMedicationSchema,
+    ],
+
+    attachments: [
+      prescriptionAttachmentSchema,
     ],
 
     notes: {

@@ -26,7 +26,7 @@ export default function ReceptionUpload() {
   const [loading, setLoading]   = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [form, setForm] = useState({
-    patientId: '', title: '', type: 'lab', date: '', file: null
+    patientId: '', title: '', type: 'lab', date: '', labName: '', file: null
   })
 
   useEffect(() => {
@@ -38,15 +38,19 @@ export default function ReceptionUpload() {
   )
 
   function handleFile(file) {
-    if (file && file.type === 'application/pdf') {
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
+    if (file && allowedTypes.includes(file.type)) {
       setForm(f => ({ ...f, file }))
     } else {
-      toast.error('Please select a PDF file')
+      toast.error('Please select a PDF, JPG, or PNG file')
     }
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (form.type === 'lab' && !form.labName.trim()) {
+      return toast.error('Enter the facility or laboratory name for this lab report')
+    }
     if (!form.patientId || !form.title || !form.file) {
       return toast.error('Please fill all required fields and select a file')
     }
@@ -58,6 +62,7 @@ export default function ReceptionUpload() {
       data.append('title',     form.title)
       data.append('type',      form.type)
       data.append('date',      form.date || new Date().toISOString())
+      data.append('labName',   form.labName.trim())
       await api.post('/api/reports/upload', data)
       toast.success('Report uploaded successfully!')
       navigate('/reception/dashboard')
@@ -185,6 +190,16 @@ export default function ReceptionUpload() {
                         ))}
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-emerald-950 mb-2">Facility / laboratory {form.type === 'lab' && '*'}</label>
+                      <input
+                        required={form.type === 'lab'}
+                        className="w-full rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm placeholder:text-emerald-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        placeholder="e.g. City Diagnostic Laboratory"
+                        value={form.labName}
+                        onChange={event => setForm(current => ({ ...current, labName: event.target.value }))}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -192,7 +207,7 @@ export default function ReceptionUpload() {
                   {/* Step 3: File Upload */}
                   <div className="flex items-center gap-2 mb-5">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-600 text-white text-sm font-bold">3</div>
-                    <h2 className="text-lg font-bold text-emerald-950">Attach PDF *</h2>
+                    <h2 className="text-lg font-bold text-emerald-950">Attach report *</h2>
                   </div>
                   
                   <div
@@ -213,11 +228,11 @@ export default function ReceptionUpload() {
                         </div>
                       : <div>
                           <p className="text-4xl mb-3">📄</p>
-                          <p className="font-bold text-emerald-950">Drop PDF here</p>
+                          <p className="font-bold text-emerald-950">Drop PDF, JPG, or PNG here</p>
                           <p className="text-sm text-emerald-700 mt-1">or click to browse</p>
                         </div>
                     }
-                    <input id="file-input" type="file" accept=".pdf" className="hidden"
+                    <input id="file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
                       onChange={e => handleFile(e.target.files[0])} />
                   </div>
                 </div>

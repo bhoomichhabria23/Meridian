@@ -1,10 +1,7 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import Layout from '../../components/common/Layout'
-import api from '../../api/axios'
-import { useAuth } from '../../context/AuthContext'
-import { Empty, PageLoader } from '../../components/common/UI'
-import { Send, Loader2, Brain } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react';
+import { Bot, Check, Clipboard, LoaderCircle, MessageCircle, Plus, Send, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react';
+import Layout from '../../components/common/Layout';
+import { sendChatMessage } from '../../services/chatService';
 
 const LINKS = [
   { to: '/doctor/dashboard', label: 'Dashboard', icon: '🏥' },
@@ -14,164 +11,152 @@ const LINKS = [
   { to: '/doctor/safety-alerts', label: 'Safety Alerts', icon: '⚠️' },
   { to: '/doctor/ai-assistant', label: 'AI Assistant', icon: '🤖' },
   { to: '/doctor/profile', label: 'Profile', icon: '👤' },
-]
+];
 
-export default function AIAssistant() {
-  const navigate = useNavigate()
-  const { user } = useAuth()
-  const [messages, setMessages] = useState([
-    {
-      _id: '1',
-      role: 'ai',
-      content: 'Hello! I\'m your AI Medical Assistant. I can help you with clinical decision support, patient information summaries, medication interactions, and more. How can I assist you today?',
-      timestamp: new Date()
-    }
-  ])
-  const [inputValue, setInputValue] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+const time = (value) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim()) return
+function Message({ message }) {
+  const assistant = message.role === 'assistant';
+  const [copied, setCopied] = useState(false);
 
-    const userMessage = {
-      _id: Date.now().toString(),
-      role: 'user',
-      content: inputValue,
-      timestamp: new Date()
-    }
-
-    setMessages([...messages, userMessage])
-    setInputValue('')
-    setLoading(true)
-
-    try {
-      // Simulate API call - in real app this would call backend
-      setTimeout(() => {
-        const aiResponse = {
-          _id: (Date.now() + 1).toString(),
-          role: 'ai',
-          content: generateAIResponse(inputValue),
-          timestamp: new Date()
-        }
-        setMessages(prev => [...prev, aiResponse])
-        setLoading(false)
-      }, 1000)
-    } catch (err) {
-      setError('Failed to send message')
-      setLoading(false)
-    }
-  }
-
-  const generateAIResponse = (input) => {
-    // Sample responses for demonstration
-    const responses = [
-      'Based on the patient information provided, I recommend considering the following clinical pathway...',
-      'The lab results suggest elevated levels. Please consider follow-up testing or consultation with a specialist.',
-      'This medication combination has no known interactions. However, monitor for common side effects.',
-      'Patient\'s symptoms align with the following differential diagnoses. Consider ruling out...',
-      'I\'ve analyzed the patient timeline. Key findings: consistent pattern over time, trending improvement/worsening.'
-    ]
-    return responses[Math.floor(Math.random() * responses.length)]
-  }
-
-  const QuickActions = [
-    { label: 'Drug Interactions', icon: '💊' },
-    { label: 'Clinical Guidelines', icon: '📚' },
-    { label: 'Patient Summary', icon: '👤' },
-    { label: 'Lab Interpretation', icon: '🧪' }
-  ]
+  const copy = async () => {
+    await navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
-    <Layout links={LINKS}>
-      <div className="max-w-4xl mx-auto h-screen flex flex-col">
-        <div className="mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Brain className="w-6 h-6 text-green-700" />
-            <h1 className="text-3xl font-bold text-slate-900">AI Medical Assistant</h1>
+    <div className={`mb-6 flex gap-3 ${assistant ? 'justify-start' : 'justify-end'}`}>
+      <div className={`flex max-w-[85%] gap-3 ${assistant ? 'flex-row' : 'flex-row-reverse'}`}>
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${assistant ? 'bg-[#eaf7ed] text-[#25854d]' : 'bg-[#315f46] text-white'}`}>
+          {assistant ? <Bot size={16} /> : <UserRound size={16} />}
+        </span>
+        <div className={assistant ? '' : 'text-right'}>
+          <div className={`rounded-2xl px-4 py-3 text-sm leading-6 ${assistant ? 'rounded-tl-md bg-[#f1f8f3] text-[#4e6658]' : 'rounded-tr-md bg-[#25854d] text-white'}`}>
+            {message.content}
           </div>
-          <p className="text-slate-600">Get instant clinical support and decision assistance</p>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
-          </div>
-        )}
-
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto mb-4 bg-white rounded-lg border border-slate-200 p-6 space-y-4">
-          {messages.map((msg) => (
-            <div
-              key={msg._id}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-md lg:max-w-2xl rounded-lg p-4 ${
-                  msg.role === 'user'
-                    ? 'bg-green-700 text-white'
-                    : 'bg-slate-100 text-slate-900'
-                }`}
-              >
-                <p className="text-sm">{msg.content}</p>
-                <span className={`text-xs mt-2 block ${
-                  msg.role === 'user' ? 'opacity-70' : 'text-slate-500'
-                }`}>
-                  {msg.timestamp.toLocaleTimeString()}
-                </span>
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="bg-slate-100 text-slate-900 rounded-lg p-4 flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">AI is thinking...</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Actions */}
-        {messages.length <= 1 && (
-          <div className="mb-4">
-            <p className="text-sm font-medium text-slate-600 mb-2">Quick actions:</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {QuickActions.map((action, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setInputValue(action.label)}
-                  className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition text-sm font-medium text-slate-700"
-                >
-                  <span>{action.icon}</span> {action.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Input Area */}
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Ask me about medications, diagnoses, lab results, or clinical guidelines..."
-              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              disabled={loading}
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={loading || !inputValue.trim()}
-              className="bg-green-700 hover:bg-green-800 text-white p-2 rounded-lg transition disabled:opacity-50"
-            >
-              <Send className="w-5 h-5" />
-            </button>
+          <div className={`mt-2 flex items-center gap-3 text-[10px] text-[#98a69e] ${assistant ? '' : 'justify-end'}`}>
+            <span>{time(message.timestamp)}</span>
+            {assistant && (
+              <>
+                <button type="button" onClick={copy} title="Copy response">{copied ? <Check size={13} /> : <Clipboard size={13} />}</button>
+                <button type="button" title="Helpful"><ThumbsUp size={13} /></button>
+                <button type="button" title="Not helpful"><ThumbsDown size={13} /></button>
+              </>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+export default function AIAssistant() {
+  const [messages, setMessages] = useState([
+    { id: 'welcome', role: 'assistant', content: 'Hello. I can help with clinical summaries, medication safety, lab interpretation, and patient-specific decision support. Ask anything medical and I will respond in context-aware detail.', timestamp: Date.now() },
+  ]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [history, setHistory] = useState([]);
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, sending]);
+
+  const newChat = () => {
+    if (messages.length) {
+      setHistory((current) => [{ id: Date.now(), title: messages.find((message) => message.role === 'user')?.content || 'Clinical conversation', messages }, ...current]);
+    }
+    setMessages([{ id: 'welcome', role: 'assistant', content: 'Hello. I can help with clinical summaries, medication safety, lab interpretation, and patient-specific decision support. Ask anything medical and I will respond in context-aware detail.', timestamp: Date.now() }]);
+    setError('');
+  };
+
+  const send = async () => {
+    const content = input.trim();
+    if (!content || sending) return;
+
+    const next = [...messages, { role: 'user', content, timestamp: Date.now() }];
+    setMessages(next);
+    setInput('');
+    setSending(true);
+    setError('');
+
+    try {
+      const result = await sendChatMessage(next);
+      setMessages([...next, { role: 'assistant', content: result.message, timestamp: Date.now() }]);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const submit = (event) => {
+    event.preventDefault();
+    send();
+  };
+
+  const keyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      send();
+    }
+  };
+
+  return (
+    <Layout links={LINKS}>
+      <div className="mx-auto max-w-7xl px-4 pb-10 pt-7 sm:px-6 lg:px-8">
+        <div className="grid min-h-[calc(100vh-120px)] gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className="rounded-2xl border border-[#deece1] bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-[#25854d]">
+              <MessageCircle size={18} />
+              <h2 className="font-bold">Conversation history</h2>
+            </div>
+            <button type="button" onClick={newChat} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25854d] px-3 py-2.5 text-xs font-bold text-white">
+              <Plus size={15} /> New chat
+            </button>
+            <div className="mt-5 space-y-2">
+              {history.length ? history.map((item) => (
+                <button key={item.id} type="button" className="w-full rounded-xl border border-[#e1efe5] bg-[#f5faf6] px-3 py-2 text-left text-xs font-semibold text-[#315f46]">
+                  {item.title}
+                </button>
+              )) : (
+                <div className="rounded-xl border border-dashed border-[#dcebe0] bg-[#f8fbf9] p-4 text-sm text-[#6e8078]">No saved threads yet.</div>
+              )}
+            </div>
+          </aside>
+
+          <main className="rounded-2xl border border-[#deece1] bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-[#edf3ee] bg-[#f9fcfa] p-4">
+              <div className="max-h-[420px] overflow-y-auto space-y-2 pr-1">
+                {messages.map((message) => (
+                  <Message key={`${message.role}-${message.timestamp}-${Math.random()}`} message={message} />
+                ))}
+                {sending && (
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-2 rounded-2xl bg-[#f1f8f3] px-4 py-3 text-sm text-[#4e6658]">
+                      <LoaderCircle className="h-4 w-4 animate-spin text-[#25854d]" />
+                      AI is analyzing...
+                    </div>
+                  </div>
+                )}
+                <div ref={endRef} />
+              </div>
+            </div>
+
+            <form onSubmit={submit} className="mt-5 flex gap-3">
+              <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={keyDown} rows={1} placeholder="Ask about a patient, medication, lab trend, or treatment plan..." className="min-h-[52px] flex-1 resize-none rounded-2xl border border-[#dfeee3] bg-[#f9fcfa] px-4 py-3 text-sm text-[#183a28] outline-none focus:border-[#8ac79d]" />
+              <button type="submit" disabled={sending || !input.trim()} className="inline-flex h-[52px] items-center justify-center gap-2 rounded-2xl bg-[#25854d] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                <Send size={16} /> Send
+              </button>
+            </form>
+
+            {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{error}</div>}
+          </main>
+        </div>
+      </div>
     </Layout>
-  )
+  );
 }

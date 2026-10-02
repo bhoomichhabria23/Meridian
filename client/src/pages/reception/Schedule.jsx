@@ -74,6 +74,8 @@ export default function ReceptionSchedule() {
         return 'bg-yellow-100 text-yellow-800'
       case 'cancelled':
         return 'bg-red-100 text-red-800'
+      case 'rescheduled':
+        return 'bg-blue-100 text-blue-800'
       default:
         return 'bg-slate-100 text-slate-800'
     }
@@ -180,9 +182,9 @@ export default function ReceptionSchedule() {
           })}
         </div>
 
-        {/* Upcoming Appointments Summary */}
+        {/* Appointments Summary */}
         <div className="mt-8">
-          <h2 className="text-xl font-semibold text-slate-900 mb-4">Upcoming Appointments</h2>
+          <h2 className="text-xl font-semibold text-slate-900 mb-4">Appointments</h2>
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">

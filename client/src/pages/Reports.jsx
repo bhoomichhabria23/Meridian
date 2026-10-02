@@ -20,6 +20,7 @@ import {
   AlertCircle,
   X,
   Eye,
+  Sparkles,
 } from "lucide-react";
 import { deleteReport as deleteReportFile, downloadReport } from "../services/reportService";
 
@@ -76,7 +77,7 @@ function ReportListItem({
     <button
       type="button"
       onClick={() => onSelect(report)}
-      className={`grid w-full grid-cols-1 gap-4 border-b border-slate-100 px-5 py-4 text-left transition last:border-b-0 lg:grid-cols-[2fr_0.8fr_1fr_1.5fr_0.8fr_auto] lg:items-center ${
+      className={`mx-3 my-3 grid w-[calc(100%-1.5rem)] grid-cols-1 gap-4 rounded-2xl border px-5 py-5 text-left shadow-sm transition lg:grid-cols-[2fr_0.8fr_1fr_1.5fr_0.8fr_auto] lg:items-center ${
         selected
           ? "bg-green-50/50"
           : "bg-white hover:bg-slate-50"
@@ -190,6 +191,8 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -212,20 +215,11 @@ export default function Reports() {
       setLoading(true);
       setError("");
 
-      const token = localStorage.getItem("token");
-
       const response = await fetch(
         `${API_URL}/api/reports`,
         {
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token
-              ? {
-                  Authorization: `Bearer ${token}`,
-                }
-              : {}),
-          },
+          headers: { "Content-Type": "application/json" },
         }
       );
 
@@ -269,8 +263,6 @@ export default function Reports() {
       setUploading(true);
       setError("");
 
-      const token = localStorage.getItem("token");
-
       const formData = new FormData();
 
       formData.append("file", file);
@@ -285,13 +277,6 @@ export default function Reports() {
         {
           method: "POST",
           credentials: "include",
-          headers: {
-            ...(token
-              ? {
-                  Authorization: `Bearer ${token}`,
-                }
-              : {}),
-          },
           body: formData,
         }
       );
@@ -305,6 +290,8 @@ export default function Reports() {
       }
 
       await fetchReports();
+      setSuccess("Report uploaded successfully.");
+      window.setTimeout(() => setSuccess(""), 4000);
     } catch (err) {
       console.error(err);
 
@@ -334,8 +321,6 @@ export default function Reports() {
     if (!confirmed) return;
 
     try {
-      const token = localStorage.getItem("token");
-
       await deleteReportFile(selectedReport._id);
 
       setSelectedReport(null);
@@ -467,6 +452,27 @@ export default function Reports() {
     }
   };
 
+  const handleGenerateSummary = async () => {
+    if (!selectedReport?._id || !selectedReport.extractedText) return;
+    try {
+      setSummaryLoading(true);
+      setError("");
+      const response = await fetch(`${API_URL}/api/reports/${selectedReport._id}/summary`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || "Unable to generate AI summary.");
+      setSelectedReport((current) => ({ ...current, aiSummary: result.summary }));
+      setReports((current) => current.map((report) => report._id === selectedReport._id ? { ...report, aiSummary: result.summary } : report));
+    } catch (requestError) {
+      setError(requestError.message || "Unable to generate AI summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   /*
    * PRINT
    */
@@ -593,6 +599,12 @@ export default function Reports() {
         {/* CONTENT */}
         <section className="mx-auto max-w-[1500px] px-5 py-7 sm:px-8 lg:px-10">
 
+          {success && (
+            <div className="mb-5 rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+              {success}
+            </div>
+          )}
+
           {/* ERROR */}
           {error && (
             <div className="mb-5 flex items-center justify-between rounded-xl border border-red-100 bg-red-50 px-4 py-3">
@@ -651,7 +663,7 @@ export default function Reports() {
           </div>
 
           {/* MAIN */}
-          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[190px_minmax(0,1fr)_430px]">
+          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[220px_minmax(0,1fr)_520px]">
 
             {/* CATEGORY */}
             <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1062,6 +1074,26 @@ export default function Reports() {
                     </div>
                   </div>
 
+                  <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={17} className="text-emerald-700" />
+                        <h3 className="font-semibold text-emerald-900">AI clinical summary</h3>
+                      </div>
+                      {!selectedReport.aiSummary && selectedReport.extractedText && (
+                        <button type="button" onClick={handleGenerateSummary} disabled={summaryLoading} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60">
+                          {summaryLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                          {summaryLoading ? "Interpreting..." : "Generate summary"}
+                        </button>
+                      )}
+                    </div>
+                    {selectedReport.aiSummary ? (
+                      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-emerald-950">{selectedReport.aiSummary}</p>
+                    ) : (
+                      <p className="mt-3 text-sm leading-6 text-emerald-800/70">AI summary will appear when clinical interpretation is available.</p>
+                    )}
+                  </div>
+
                   {/* PREVIEW */}
                   <div className="mt-5">
 
@@ -1087,7 +1119,7 @@ export default function Reports() {
 
                     </div>
 
-                    <div className="h-[250px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    <div className="h-[380px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
 
                       {selectedReport.fileUrl ? (
                         isPDF ? (

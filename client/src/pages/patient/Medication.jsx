@@ -14,16 +14,13 @@ import {
   Trash2,
 } from "lucide-react";
 import Navbar from "../../components/Navbar";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const tabs = [
-  ["all", "All Medications"],
+  ["active", "Active"],
   ["completed", "Completed"],
+  ["stopped", "Stopped"],
 ];
-const auth = () => {
-  const token =
-    localStorage.getItem("token") || localStorage.getItem("auth_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
 const formatDate = (value) => {
   const date = new Date(value);
   return value && !Number.isNaN(date.getTime())
@@ -134,6 +131,7 @@ function MedicationRow({ item, onTake, onSelect, onDelete }) {
       <div className="text-xs">{formatDate(item.endDate)}</div>
       <div className="sm:-translate-x-3"><span className={`inline-flex rounded-lg px-2 py-1 text-[10px] font-bold capitalize ${active ? "bg-[#eaf7ed] text-[#25854d]" : "bg-[#f0f3f1] text-[#738178]"}`}>{status}</span></div>
       <div className="flex items-center gap-2"><button type="button" onClick={(event) => { event.stopPropagation(); if (active) onTake(item._id); }} title="Mark dose taken" disabled={!active} className={`rounded-lg p-1.5 ${active ? "text-[#25854d] hover:bg-[#edf8f0]" : "text-[#c5d0c9]"}`}><Check size={16} /></button><button type="button" onClick={(event) => { event.stopPropagation(); onDelete(item); }} title="Delete medication" className="rounded-lg p-1.5 text-red-400 hover:bg-red-50"><Trash2 size={15} /></button></div>
+      {status === "stopped" && item.stoppedReason && <p className="sm:col-span-full rounded-lg bg-[#fff8f6] px-3 py-2 text-xs text-[#8a4b42]"><strong>Stopped by your doctor:</strong> {item.stoppedReason}</p>}
     </div>
   );
 }
@@ -160,7 +158,7 @@ export default function Medications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState("all");
+  const [tab, setTab] = useState("active");
   const [selected, setSelected] = useState(null);
   const [interactions, setInteractions] = useState({ count: 0, interactions: [] });
   const [interactionsOpen, setInteractionsOpen] = useState(false);
@@ -180,7 +178,8 @@ export default function Medications() {
       setLoading(true);
       setError("");
       const response = await fetch(`${API_URL}/api/medications`, {
-        headers: auth(),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
@@ -188,7 +187,10 @@ export default function Medications() {
       }
       const result = await response.json();
       setItems(Array.isArray(result) ? result : result.medications || []);
-      const interactionResponse = await fetch(`${API_URL}/api/medications/interactions`, { headers: auth() });
+      const interactionResponse = await fetch(`${API_URL}/api/medications/interactions`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       if (interactionResponse.ok) setInteractions(await interactionResponse.json());
     } catch {
       setError("Unable to load medications. Please try again.");
@@ -202,10 +204,7 @@ export default function Medications() {
   const filtered = useMemo(
     () =>
       items
-        .filter((item) =>
-          tab === "all" ||
-          String(item.status || "active").toLowerCase() === tab,
-        )
+        .filter((item) => String(item.status || "active").toLowerCase() === tab)
         .filter((item) =>
           [item.name, item.description, item.type, item.dosage].some((value) =>
             String(value || "")
@@ -217,7 +216,11 @@ export default function Medications() {
   );
   const take = async (id) => {
     try {
-      const response = await fetch(`${API_URL}/api/medications/${id}/take`, { method: "POST", headers: auth() });
+      const response = await fetch(`${API_URL}/api/medications/${id}/take`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
         throw new Error(result.message || "Unable to mark medication as taken.");
@@ -232,7 +235,11 @@ export default function Medications() {
     const medicationId = item._id || item.id;
     if (!medicationId || !window.confirm(`Delete ${item.name || "this medication"}?`)) return;
     try {
-      const response = await fetch(`${API_URL}/api/medications/${medicationId}`, { method: "DELETE", headers: auth() });
+      const response = await fetch(`${API_URL}/api/medications/${medicationId}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || "Unable to delete medication.");
       setItems((currentItems) => currentItems.filter((currentItem) => String(currentItem._id || currentItem.id) !== String(medicationId)));
       setSelected(null);
@@ -247,7 +254,8 @@ export default function Medications() {
     try {
       const response = await fetch(`${API_URL}/api/medications`, {
         method: "POST",
-        headers: { ...auth(), "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addForm),
       });
       if (!response.ok) {
@@ -475,6 +483,7 @@ export default function Medications() {
               />
               <Field label="End date" value={formatDate(selected.endDate)} />
             </div>
+            {String(selected.status).toLowerCase() === "stopped" && selected.stoppedReason && <div className="mt-4 rounded-xl border border-[#f2ded9] bg-[#fff8f6] p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-[#a45a4e]">Reason stopped</p><p className="mt-1 text-sm text-[#70483f]">{selected.stoppedReason}</p>{selected.stoppedAt && <p className="mt-2 text-xs text-[#92766f]">Stopped {formatDate(selected.stoppedAt)}</p>}</div>}
           </div>
         </div>
       )}

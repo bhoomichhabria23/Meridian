@@ -58,9 +58,6 @@ function ReminderCard({ item, onEdit, onDelete, onUpdate }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-bold text-[#1b3c2a]">{item.title}</h3>
-            <span className="rounded-full bg-[#edf8f0] px-2.5 py-1 text-[10px] font-bold capitalize text-[#25854d]">
-              {item.priority} priority
-            </span>
           </div>
           <p className="mt-1 text-xs capitalize text-[#7d8e84]">
             {item.type?.replace("_", " ")} Â· {dateTime(item.date)}

@@ -156,14 +156,6 @@ export default function RegisterPage() {
             : null,
       };
 
-      // Save application information locally
-      localStorage.setItem(
-        "user",
-        JSON.stringify(userData)
-      );
-
-      localStorage.setItem("role", role);
-
       // =================================================
       // IMPORTANT
       // =================================================
@@ -178,12 +170,6 @@ export default function RegisterPage() {
       // =================================================
 
       await signOut(auth);
-
-      localStorage.removeItem("user");
-      localStorage.removeItem("role");
-      localStorage.removeItem("token");
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("patientId");
       toast.success("Registration successful. Please sign in to continue.");
 
       // Firebase remains the identity provider; the exchanged JWT is the
@@ -306,35 +292,35 @@ export default function RegisterPage() {
 
               <Link
                 to="/"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className="text-sm font-bold text-slate-600 hover:text-green-700 transition"
               >
                 Home
               </Link>
 
               <a
                 href="/#features"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className="text-sm font-bold text-slate-600 hover:text-green-700 transition"
               >
                 Features
               </a>
 
               <a
                 href="/#how-it-works"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className="text-sm font-bold text-slate-600 hover:text-green-700 transition"
               >
                 How It Works
               </a>
 
               <a
                 href="/#about"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className="text-sm font-bold text-slate-600 hover:text-green-700 transition"
               >
                 About
               </a>
 
               <a
                 href="/#contact"
-                className="text-sm text-slate-600 hover:text-green-700 transition"
+                className="text-sm font-bold text-slate-600 hover:text-green-700 transition"
               >
                 Contact
               </a>
@@ -1072,7 +1058,9 @@ export default function RegisterPage() {
                       : `Create ${
                           role === "patient"
                             ? "Patient"
-                            : "Doctor"
+                            : role === "doctor"
+                            ? "Doctor"
+                            : "Receptionist"
                         } Account`}
 
                     {!loading && (

@@ -42,17 +42,11 @@ const ChatbotWidget = ({
   const fetchChatHistory =
     async () => {
       try {
-        const token =
-          localStorage.getItem(
-            "token"
-          );
         const response =
           await axios.get(
             `/api/assistant/history?patientId=${patientId || ""}`,
             {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+              withCredentials: true,
             }
           );
         if (
@@ -90,8 +84,6 @@ const ChatbotWidget = ({
       setLoading(true);
 
       try {
-        const token =
-          localStorage.getItem("token");
         const response =
           await axios.post(
             "/api/assistant/chat",
@@ -102,9 +94,7 @@ const ChatbotWidget = ({
               useContext: true,
             },
             {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+              withCredentials: true,
             }
           );
 
