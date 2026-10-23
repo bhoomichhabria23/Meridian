@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Search, Stethoscope, UserRound } from 'lucide-react';
+import { FileText, Search, Stethoscope, UserPlus, UserRound } from 'lucide-react';
 import Layout from '../../components/common/Layout';
 import api from '../../api/axios';
 import { PageLoader } from '../../components/common/UI';
@@ -70,8 +70,11 @@ export default function DoctorPatients() {
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100">Patient list</p>
             <h1 className="mt-2 text-3xl font-black md:text-4xl">Assigned care team</h1>
           </div>
-          <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-emerald-50">
-            {patients.length} active patients
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => navigate('/doctor/patients/new')} className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-[#176b3d] shadow-lg"><UserPlus size={16} /> Add patient</button>
+            <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-emerald-50">
+              {patients.length} active patients
+            </div>
           </div>
         </section>
 

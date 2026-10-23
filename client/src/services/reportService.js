@@ -39,16 +39,31 @@ export async function generateReportSummary(reportId) {
 export async function downloadReport(report) {
   const reportId = report?._id || report?.reportId || report?.id;
   if (!reportId) throw new Error("This report is not available for download yet.");
-  const response = await request(`/api/reports/${encodeURIComponent(reportId)}/download`);
+  const downloadUrl = `${API_URL.replace(/\/$/, "")}/api/reports/${encodeURIComponent(reportId)}/download`;
+  let response = await fetch(downloadUrl, { credentials: "include" });
+  let downloadError = "Unable to download report.";
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    downloadError = result.message || downloadError;
+    if (!report.fileUrl) throw new Error(downloadError);
+
+    const fileUrl = new URL(report.fileUrl, `${API_URL.replace(/\/$/, "")}/`).toString();
+    response = await fetch(fileUrl, { credentials: "include" });
+    if (!response.ok) {
+      const fallbackError = await response.json().catch(() => ({}));
+      throw new Error(fallbackError.message || downloadError);
+    }
+  }
+
   const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
+  const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url;
+  link.href = objectUrl;
   link.download = report.fileName || report.name || "clinical-report";
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 export async function deleteReport(reportId) {

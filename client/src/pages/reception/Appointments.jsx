@@ -43,6 +43,11 @@ export default function ReceptionAppointments() {
       }
     }
     load()
+    const refreshOnFocus = () => {
+      if (!document.hidden) load()
+    }
+    window.addEventListener('focus', refreshOnFocus)
+    return () => window.removeEventListener('focus', refreshOnFocus)
   }, [])
 
   useEffect(() => {

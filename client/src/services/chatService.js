@@ -1,12 +1,12 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-export async function sendChatMessage(messages) {
+export async function sendChatMessage(messages, options = {}) {
   const message = messages.filter((item) => item.role === "user").at(-1)?.content || "";
   const response = await fetch(`${API_URL}/api/assistant/chat`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, ...options }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -23,5 +23,15 @@ export async function fetchChatHistory(patientId = "") {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result?.message || "Unable to load chat history.");
-  return result.data?.messages || [];
+  return result.data || { messages: [], conversations: [] };
+}
+
+export async function fetchChatConversations() {
+  const response = await fetch(`${API_URL}/api/assistant/history`, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result?.message || "Unable to load chat history.");
+  return result.data?.conversations || [];
 }

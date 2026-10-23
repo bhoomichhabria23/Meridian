@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, CalendarDays, ChevronDown, ClipboardList, FileUp, Grid2X2, LogOut, Menu, Stethoscope, UserRound, UsersRound, X } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown, ClipboardList, FileUp, Grid2X2, LogOut, Menu, Sparkles, Stethoscope, UserRound, UsersRound, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { API_BASE_URL } from "../../api/config";
@@ -11,6 +11,7 @@ const navItems = [
   ["Doctors", "/reception/doctors", Stethoscope],
   ["Schedule", "/reception/schedule", ClipboardList],
   ["Upload Reports", "/reception/upload", FileUp],
+  ["AI Assistant", "/reception/assistant", Sparkles],
 ];
 
 export default function ReceptionNavbar() {

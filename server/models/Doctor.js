@@ -7,11 +7,11 @@ const DoctorSchema = new mongoose.Schema({
   hospital:     { type: String },
   department:   { type: String },
   workingHours: {
-    start: { type: String, default: '09:00' },
-    end:   { type: String, default: '17:00' },
+    start: { type: String, default: '10:00' },
+    end:   { type: String, default: '19:00' },
     days:  [{ type: Number }]
   },
-  slotDuration: { type: Number, default: 20 },
+  slotDuration: { type: Number, default: 30 },
   patients:     [{ type: mongoose.Schema.Types.ObjectId, ref: 'Patient' }]
 });
 

@@ -8,6 +8,7 @@ const Doctor = require("../models/Doctor");
 const Appointment = require("../models/Appointment");
 const Reminder = require("../models/Reminder");
 const Notification = require("../models/Notification");
+const MedicalEvent = require("../models/MedicalEvent");
 const authMiddleware = require("../middleware/authMiddleware");
 const { createEvent } = require("../utils/medicalEvent");
 
@@ -110,6 +111,7 @@ router.post("/", authMiddleware, async (req, res) => {
       const reminderDate = dates[0] || nextDoseDate(doseTime);
       await Reminder.insertMany((dates.length ? dates : [reminderDate]).map((date) => ({
           userId: ownerId,
+          medicationId: medication._id,
           title: `Take ${medication.name}`,
           type: "medication",
           date,
@@ -118,6 +120,7 @@ router.post("/", authMiddleware, async (req, res) => {
         })));
       await Notification.create({
         userId: ownerId,
+        medicationId: medication._id,
         title: "Medication reminder enabled",
         body: `${medication.name} reminder set for ${reminderDate.toLocaleString()}.`,
         type: "reminder",
@@ -263,6 +266,13 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       patientId: req.user.id,
     });
     if (!medication) return res.status(404).json({ message: "Medication not found" });
+
+    await Promise.all([
+      Reminder.deleteMany({ medicationId: medication._id }),
+      Notification.deleteMany({ medicationId: medication._id }),
+      MedicalEvent.deleteMany({ refModel: "Medication", refId: medication._id }),
+    ]);
+
     res.json({ message: "Medication deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Failed to delete medication" });

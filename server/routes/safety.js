@@ -2,6 +2,8 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Prescription = require("../models/Prescription");
 const Patient = require("../models/Patient");
+const Doctor = require("../models/Doctor");
+const Appointment = require("../models/Appointment");
 const SafetyAlert = require("../models/SafetyAlert");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
@@ -10,6 +12,70 @@ const GroqService = require("../services/groqService");
 const { verifyToken } = require("../middleware/auth");
 
 const router = express.Router();
+
+router.get("/patient/:patientId/current-alerts", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "doctor") {
+      return res.status(403).json({ success: false, message: "Only doctors can review patient safety alerts." });
+    }
+
+    const patientIdentity = String(req.params.patientId || "");
+    const patient = mongoose.Types.ObjectId.isValid(patientIdentity)
+      ? await Patient.findOne({ $or: [{ _id: patientIdentity }, { userId: patientIdentity }] }).select("_id userId assignedDoctors").lean()
+      : null;
+    if (!patient) return res.status(404).json({ success: false, message: "Patient not found." });
+
+    const doctor = await Doctor.findOne({ userId: req.user.id }).select("_id").lean();
+    if (!doctor) return res.status(403).json({ success: false, message: "Doctor profile not found." });
+    const assigned = (patient.assignedDoctors || []).some((doctorId) => String(doctorId) === String(doctor._id));
+    const hasCareAppointment = await Appointment.exists({
+      doctorId: { $in: [doctor._id, req.user.id] },
+      patientId: { $in: [patient._id, patient.userId] },
+      status: { $in: ["pending", "confirmed", "completed"] },
+    });
+    if (!assigned && !hasCareAppointment) {
+      return res.status(403).json({ success: false, message: "You are not authorized to review this patient's safety alerts." });
+    }
+
+    const analysis = await SafetyEngine.analyzePatientHistory(String(patient.userId));
+    const alerts = [
+      { _id: `red-flags-${patient._id}`, title: "Red-flag summary", status: analysis.status, alerts: analysis.alerts },
+      { _id: `overdue-tests-${patient._id}`, title: "Overdue test reminders", status: "WARNING", alerts: analysis.overdueTests || [] },
+      { _id: `duplicate-tests-${patient._id}`, title: "Duplicate test detection", status: "WARNING", alerts: analysis.duplicateTests || [] },
+      { _id: `lab-trends-${patient._id}`, title: "Lab trend analysis", status: "WARNING", alerts: analysis.labTrends || [] },
+    ].filter((group) => group.alerts.length > 0).map((group) => ({
+      ...group,
+      patientId: patient._id,
+      createdAt: analysis.analyzedAt,
+      reviewed: false,
+    }));
+
+    return res.json({ success: true, data: alerts });
+  } catch (error) {
+    console.error("Current patient safety analysis error:", error);
+    return res.status(500).json({ success: false, message: "Unable to analyze the patient's current safety records." });
+  }
+});
+
+router.post("/patient/:patientId/current-alerts/review", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "doctor") return res.status(403).json({ message: "Only doctors can review patient safety alerts." });
+    const reason = String(req.body?.reason || "").trim();
+    const action = String(req.body?.action || "acknowledged").trim();
+    if (!reason) return res.status(400).json({ message: "A review reason is required." });
+    const patient = await Patient.findById(req.params.patientId).select("userId assignedDoctors").lean();
+    if (!patient) return res.status(404).json({ message: "Patient not found." });
+    const doctor = await Doctor.findOne({ userId: req.user.id }).select("_id").lean();
+    const assigned = doctor && (patient.assignedDoctors || []).some((doctorId) => String(doctorId) === String(doctor._id));
+    const hasCareAppointment = await Appointment.exists({ doctorId: { $in: [doctor?._id, req.user.id] }, patientId: { $in: [patient._id, patient.userId] }, status: { $in: ["pending", "confirmed", "completed"] } });
+    if (!assigned && !hasCareAppointment) return res.status(403).json({ message: "You are not authorized to review this patient's safety alerts." });
+    await AuditLog.create({ userId: req.user.id, role: req.user.role, action: `SAFETY_ALERT_${action.toUpperCase()}`, entityType: "PatientSafetyAnalysis", entityId: patient._id, targetUserId: patient.userId, details: { alertId: req.body?.alertId || "current-analysis", reason } });
+    res.json({ message: "Safety alert review recorded." });
+  } catch (error) {
+    console.error("Safety alert review error:", error);
+    res.status(500).json({ message: "Unable to record safety alert review." });
+  }
+});
 
 router.post("/medication-review", verifyToken, async (req, res) => {
   try {

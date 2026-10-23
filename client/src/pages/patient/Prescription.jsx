@@ -120,8 +120,22 @@ export default function Prescriptions() {
   const action = async (type) => {
     if (!selected) return;
     if (type === "print") {
-      const printWindow = window.open(`${API_URL}/api/prescriptions/${selected._id}/print`, "_blank");
-      if (!printWindow) window.print();
+      try {
+        const response = await fetch(`${API_URL}/api/prescriptions/${selected._id}/print`, { credentials: "include" });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.prescription) throw new Error(result.message || "Unable to prepare prescription for printing.");
+        const prescription = result.prescription;
+        const printWindow = window.open("", "_blank", "noopener,noreferrer");
+        if (!printWindow) throw new Error("Allow pop-ups to print the prescription.");
+        const escape = (value) => String(value || "").replace(/[&<>]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[character]));
+        const medications = (prescription.medications || []).map((medication) => `<li><strong>${escape(medication.name)}</strong><br>Dose: ${escape(medication.dosage || "As prescribed")}<br>Frequency: ${escape(medication.frequency || "As directed")}<br>Timing: ${escape(medication.timing || "Not recorded")}<br>Duration: ${escape(medication.duration || "Not recorded")}</li>`).join("");
+        printWindow.document.write(`<html><head><title>Prescription ${escape(prescription.prescriptionId)}</title><style>body{font-family:Arial,sans-serif;padding:36px;color:#173a28}h1{color:#176b3d}li{margin:0 0 18px;line-height:1.5}</style></head><body><h1>MERIDIAN</h1><h2>Prescription ${escape(prescription.prescriptionId)}</h2><p>Diagnosis: ${escape(prescription.diagnosis)}</p><p>Issued: ${escape(formatDate(prescription.date))}</p><ol>${medications}</ol><p>${escape(prescription.notes)}</p></body></html>`);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+      } catch (printError) {
+        setError(printError.message || "Unable to print prescription.");
+      }
       return;
     }
 

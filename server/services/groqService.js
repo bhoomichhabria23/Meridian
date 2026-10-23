@@ -55,10 +55,18 @@ class GroqService {
   static async chat(userId, message, patientContext = null, role = "patient") {
     try {
       const normalizedMessage = String(message || "").trim().toLowerCase();
-      if (/^(what is|what's|tell me|do you know) my name[?!.\s]*$/.test(normalizedMessage)) {
-        const name = patientContext?.patient?.userId?.name;
+      const asksForOwnName =
+        /\bmy\s+name\b/.test(normalizedMessage)
+        && /^(what(?:\s+is|'s)?|tell(?:\s+me)?|do\s+you\s+know)\b/.test(normalizedMessage);
+      if (asksForOwnName) {
+        const name = patientContext?.currentUser?.name
+          || patientContext?.staffUser?.name
+          || patientContext?.clinicContext?.currentDoctor?.userId?.name
+          || patientContext?.patient?.userId?.name;
         return {
-          message: name ? `Your name is ${name}.` : "I do not have your name in the available patient profile.",
+          message: name
+            ? `Your name is ${name}.`
+            : "I do not have your name in the authenticated MERIDIAN account.",
           model: "meridian-profile",
           category: "personal",
         };
@@ -149,6 +157,21 @@ IMPORTANT GUIDELINES:
         prompt += `- Blood Group: ${patientContext.patient.bloodGroup || "N/A"}\n`;
       }
 
+      if (patientContext.staffUser) {
+        prompt += `\nCURRENT STAFF USER:\n`;
+        prompt += `- Name: ${patientContext.staffUser.name || "N/A"}\n`;
+        prompt += `- Role: ${patientContext.staffUser.role || role}\n`;
+        prompt += `- Email: ${patientContext.staffUser.email || "N/A"}\n`;
+        prompt += `- Phone: ${patientContext.staffUser.phone || "N/A"}\n`;
+        prompt += `- Specialization: ${patientContext.staffUser.specialization || "N/A"}\n`;
+      }
+
+      if (patientContext.currentUser && !patientContext.staffUser) {
+        prompt += `\nCURRENT AUTHENTICATED USER:\n`;
+        prompt += `- Name: ${patientContext.currentUser.name || "N/A"}\n`;
+        prompt += `- Role: ${patientContext.currentUser.role || role}\n`;
+      }
+
       if (patientContext.allergies &&
         patientContext.allergies.length > 0) {
         prompt += `\nALLERGIES:\n`;
@@ -229,6 +252,35 @@ IMPORTANT GUIDELINES:
         prompt += `\nThe live doctor directory returned no available doctors. Do not invent doctor names or availability.\n`;
       }
 
+      if (patientContext.clinicContext) {
+        const clinic = patientContext.clinicContext;
+        const isDoctorScope = role === "doctor" && clinic.currentDoctor;
+        const compact = (records, limit = 40) => (Array.isArray(records) ? records : []).slice(0, limit);
+        const compactReports = compact(clinic.reports, 20).map(({ extractedText, ...report }) => report);
+        const serialize = (records, maxCharacters) =>
+          JSON.stringify(records || []).slice(0, maxCharacters);
+        prompt += isDoctorScope
+          ? `\nCURRENT DOCTOR WORKSPACE DATA (limited to the authenticated doctor and assigned/seen patients):\n`
+          : `\nLIVE CLINIC OPERATIONS DATA (use only for doctor/receptionist workflow questions):\n`;
+        if (clinic.currentDoctor) {
+          prompt += `\nAUTHENTICATED DOCTOR PROFILE:\n${JSON.stringify(clinic.currentDoctor)}\n`;
+        }
+        prompt += `- Patients loaded: ${clinic.patients?.length || 0}\n`;
+        prompt += `- Appointments loaded: ${clinic.appointments?.length || 0}\n`;
+        prompt += `- Medications loaded: ${clinic.medications?.length || 0}\n`;
+        prompt += `- Lab records loaded: ${clinic.labs?.length || 0}\n`;
+        prompt += `- Prescriptions loaded: ${clinic.prescriptions?.length || 0}\n`;
+        prompt += `- Reports loaded: ${clinic.reports?.length || 0}\n`;
+        prompt += `- Reminders loaded: ${clinic.reminders?.length || 0}\n`;
+        prompt += `\nPATIENT DIRECTORY:\n${serialize(compact(clinic.patients), 4500)}\n`;
+        prompt += `\nAPPOINTMENTS:\n${serialize(compact(clinic.appointments, 60), 4500)}\n`;
+        prompt += `\nMEDICATION RECORDS:\n${serialize(compact(clinic.medications), 2500)}\n`;
+        prompt += `\nLAB RECORDS:\n${serialize(compact(clinic.labs), 2500)}\n`;
+        prompt += `\nPRESCRIPTIONS:\n${serialize(compact(clinic.prescriptions), 2500)}\n`;
+        prompt += `\nREPORTS:\n${serialize(compactReports, 1500)}\n`;
+        prompt += `\nREMINDERS:\n${serialize(compact(clinic.reminders), 1000)}\n`;
+      }
+
       prompt += `\nUse this patient context to provide personalized, evidence-based responses.
 Always verify assumptions with the healthcare professional.`;
     }
@@ -268,13 +320,15 @@ Always verify assumptions with the healthcare professional.`;
     patientId,
     userMessage,
     assistantMessage,
-    role = "patient"
+    role = "patient",
+    conversationId = null
   ) {
     try {
       let chatHistory = await ChatHistory.findOne({
         userId,
         patientId: patientId || null,
         role,
+        ...(conversationId ? { conversationId } : {}),
       });
 
       if (!chatHistory) {
@@ -282,6 +336,7 @@ Always verify assumptions with the healthcare professional.`;
           userId,
           patientId: patientId || null,
           role,
+          ...(conversationId ? { conversationId } : {}),
           messages: [],
         });
       }
@@ -312,14 +367,17 @@ Always verify assumptions with the healthcare professional.`;
   static async getChatHistory(
     userId,
     patientId = null,
-    role = "patient"
+    role = "patient",
+    conversationId = null
   ) {
     try {
       const query = { userId };
       if (patientId) {
         query.patientId = patientId;
       }
+
       query.role = role;
+      if (conversationId) query.conversationId = conversationId;
 
       return await ChatHistory.findOne(query).sort({
         createdAt: -1,
@@ -328,6 +386,14 @@ Always verify assumptions with the healthcare professional.`;
       console.error("Error retrieving chat history:", error);
       throw error;
     }
+  }
+
+  static async getChatConversations(userId, patientId = null, role = "patient") {
+    const query = { userId, role, patientId: patientId || null };
+    return ChatHistory.find(query)
+      .sort({ updatedAt: -1 })
+      .select("conversationId title messages createdAt updatedAt")
+      .lean();
   }
 
   /**
