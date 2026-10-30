@@ -336,9 +336,19 @@ export default function Dashboard() {
           ? Math.max(0, new Date().getFullYear() - dateOfBirth.getFullYear() - ((new Date().getMonth() < dateOfBirth.getMonth() || (new Date().getMonth() === dateOfBirth.getMonth() && new Date().getDate() < dateOfBirth.getDate())) ? 1 : 0))
           : "—";
 
+        const profileName = [
+          profile.name,
+          profile.fullName,
+          profile.displayName,
+          profilePatient.userId?.name,
+          loginName,
+          sessionUser?.name,
+          sessionUser?.displayName,
+        ].find((value) => String(value || "").trim());
+
         setPatient({
           ...emptyPatient,
-          name: profile.name || loginName,
+          name: String(profileName || "Patient").trim(),
           patientId: profilePatient.patientCode || profilePatient._id || profile.id || "—",
           age: profilePatient.age ?? calculatedAge,
           gender: profilePatient.gender || "—",
@@ -413,6 +423,7 @@ export default function Dashboard() {
           id: `timeline-${metric}-${item.label}`,
           type: metric,
           value: item.value,
+          unit: item.unit,
           date: item.label,
         })));
         setLabs([...structuredLabs, ...reportLabs, ...timelineLabs]);
@@ -610,6 +621,30 @@ export default function Dashboard() {
     ];
 
   }, [labData]);
+
+  const recentPatientMeasurements = useMemo(() => {
+    const labels = {
+      bloodPressure: "Blood pressure",
+      heartRate: "Heart rate",
+      glucose: "HbA1c / glucose",
+      weight: "Weight",
+    };
+    const latestByMetric = new Map();
+    labs
+      .filter((item) => labels[item.type])
+      .map((item) => ({
+        metric: item.type,
+        label: labels[item.type],
+        value: item.value,
+        unit: item.unit || ({ bloodPressure: "mmHg", heartRate: "bpm", glucose: "mg/dL", weight: "kg" }[item.type] || ""),
+        date: item.date,
+      }))
+      .sort((first, second) => new Date(second.date) - new Date(first.date))
+      .forEach((item) => {
+        if (!latestByMetric.has(item.metric)) latestByMetric.set(item.metric, item);
+      });
+    return [...latestByMetric.values()].sort((first, second) => new Date(second.date) - new Date(first.date));
+  }, [labs]);
 
 
   /* ============================================================
@@ -1805,14 +1840,6 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => navigate("/patient/lab-results")}
-                className="text-[10px] font-semibold text-[#159447] hover:underline"
-              >
-                View details
-              </button>
-
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-[1.1fr_1fr]">
@@ -1822,52 +1849,19 @@ export default function Dashboard() {
                 <ProgressMetric label="Weight" value={patient.weight ? `${patient.weight}` : "—"} caption={patient.weight ? "kg" : "Not recorded"} />
                 <ProgressMetric label="Height" value={patient.height ? `${patient.height}` : "—"} caption={patient.height ? "cm" : "Not recorded"} />
               </div>
-
-              <div className="rounded-xl border border-[#edf3ee] bg-[#fbfefc] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] font-semibold text-[#244b35]">
-                      {hasLabTrendData ? currentLabConfig?.label : "Lab trends"}
-                    </p>
-                    <p className="mt-1 text-[9px] text-gray-400">
-                      {hasLabTrendData ? "Latest recorded trend" : "No lab trend recorded"}
-                    </p>
+              {recentPatientMeasurements.length > 0 && (
+                <div className="mt-4 border-t border-[#edf3ee] pt-4">
+                  <p className="text-[10px] font-semibold text-[#244b35]">Recent values</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {recentPatientMeasurements.map((measurement, index) => (
+                      <div key={`${measurement.metric}-${measurement.date}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-[#fbfefc] px-2.5 py-2">
+                        <span className="text-[10px] text-[#6f8376]">{measurement.label}</span>
+                        <span className="shrink-0 text-[10px] font-bold text-[#159447]">{measurement.value} {measurement.unit}</span>
+                      </div>
+                    ))}
                   </div>
-                  <strong className="text-sm text-[#159447]">
-                    {latestLab ? `${latestLab.value} ${currentLabConfig.unit}` : "—"}
-                  </strong>
                 </div>
-
-                {hasLabTrendData ? (
-                  <div className="mt-3 flex h-10 items-end gap-1.5">
-                    {labData.slice(-8).map((point, index, points) => {
-                      const values = points.map((item) => Number(item.value)).filter(Number.isFinite);
-                      const min = Math.min(...values);
-                      const max = Math.max(...values);
-                      const range = max - min || 1;
-                      const height = 20 + ((Number(point.value) - min) / range) * 80;
-                      return (
-                        <span
-                          key={`${point.month}-${index}`}
-                          className="min-w-0 flex-1 rounded-t bg-[#8ed3a2]"
-                          style={{ height: `${height}%` }}
-                          title={`${point.month}: ${point.value} ${currentLabConfig.unit}`}
-                        />
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="mt-4 text-[10px] text-gray-400">
-                    Add lab results to start tracking trends.
-                  </p>
-                )}
-
-                {labChange !== null && (
-                  <p className="mt-2 text-[9px] text-gray-400">
-                    {Number(labChange) > 0 ? "+" : ""}{labChange} {currentLabConfig.unit} since the previous reading
-                  </p>
-                )}
-              </div>
+              )}
 
             </div>
 

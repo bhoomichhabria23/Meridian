@@ -22,12 +22,65 @@ export async function loadPatientTimeline(patientId) {
   ]);
   const insights = await request(`/patients/${patientId}/insights`, true);
   const payload = Array.isArray(timeline) ? { events: timeline } : (timeline || {});
+  const events = (payload.events || []).map(normalizeEvent);
+  const healthTrends = {};
+  Object.entries(payload.healthTrends || {}).forEach(([key, values]) => {
+    const metric = normalizeMetric(key);
+    if (!metric || !Array.isArray(values)) return;
+    healthTrends[metric] = [
+      ...(healthTrends[metric] || []),
+      ...values
+        .map((item) => normalizeTrendValue(item))
+        .filter(Boolean),
+    ];
+  });
+  events.forEach((event) => {
+    const metric = normalizeMetric(event.details?.metric || event.title || event.description);
+    const value = numericValue(event.details?.value);
+    const date = new Date(event.date);
+    if (!metric || !Number.isFinite(value) || Number.isNaN(date.getTime())) return;
+    const values = healthTrends[metric] || [];
+    if (!values.some((item) => String(item.date || item.label) === String(event.date) && item.value === value)) {
+      values.push({
+        label: date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+        value,
+        unit: event.details?.unit || "",
+        date: event.date,
+      });
+    }
+    healthTrends[metric] = values.sort((first, second) => new Date(first.date || 0) - new Date(second.date || 0));
+  });
   return {
     patient: normalizePatient(patient || payload.patient, payload),
-    events: (payload.events || []).map(normalizeEvent),
+    events,
     recordCounts: payload.recordCounts || {},
     insights: (insights || payload.insights || []).map((insight, index) => ({ ...insight, id: insight.id || insight._id || index })),
-    healthTrends: payload.healthTrends || {},
+    healthTrends,
+  };
+}
+
+function normalizeMetric(value) {
+  const metric = String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (metric.includes("bloodpressure") || metric === "bp" || metric.includes("systolic")) return "bloodPressure";
+  if (metric.includes("heartrate") || metric.includes("pulse")) return "heartRate";
+  if (metric.includes("hba1c") || metric.includes("hemoglobina1c") || metric.includes("glucose") || metric.includes("bloodsugar") || metric === "fbs") return "glucose";
+  if (metric.includes("weight")) return "weight";
+  return null;
+}
+
+function numericValue(value) {
+  const match = String(value ?? "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : NaN;
+}
+
+function normalizeTrendValue(item) {
+  const value = numericValue(item?.value);
+  if (!Number.isFinite(value)) return null;
+  const date = item?.date ? new Date(item.date) : null;
+  return {
+    ...item,
+    value,
+    date: date && !Number.isNaN(date.getTime()) ? item.date : item?.label,
   };
 }
 

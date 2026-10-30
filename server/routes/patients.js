@@ -7,6 +7,7 @@ const Prescription = require('../models/Prescription');
 const Report       = require('../models/Report');
 const Appointment  = require('../models/Appointment');
 const Medication   = require('../models/Medication');
+const LabResult    = require('../models/LabResult');
 const mongoose      = require('mongoose');
 const User          = require('../models/User');
 const Doctor        = require('../models/Doctor');
@@ -97,14 +98,16 @@ router.get('/:id/timeline', verifyToken, async (req, res) => {
     const patient = await findPatientByIdentity(req.params.id);
     if (patient) await patient.populate('userId');
     if (!patient) return res.status(404).json({ message: 'Patient not found' });
+    const patientUserId = patient.userId?._id || patient.userId;
     const storedEvents = await MedicalEvent.find({ patientId: patient._id })
       .sort({ date: -1 })
       .lean();
-    const [prescriptions, reports, appointments, medications] = await Promise.all([
-      Prescription.find({ patientId: patient.userId }).sort({ date: -1 }).lean(),
-      Report.find({ patientId: patient.userId }).sort({ date: -1 }).lean(),
+    const [prescriptions, reports, appointments, medications, labResults] = await Promise.all([
+      Prescription.find({ patientId: patientUserId }).sort({ date: -1 }).lean(),
+      Report.find({ patientId: patientUserId }).sort({ date: -1 }).lean(),
       Appointment.find({ patientId: patient._id }).sort({ date: -1 }).lean(),
-      Medication.find({ patientId: patient.userId }).sort({ createdAt: -1 }).lean(),
+      Medication.find({ patientId: patientUserId }).sort({ createdAt: -1 }).lean(),
+      LabResult.find({ patientId: { $in: [patient._id, patientUserId] } }).sort({ testDate: -1 }).lean(),
     ]);
     const storedReferences = new Set(storedEvents.map((event) => `${event.refModel}:${event.refId}`));
     const derivedEvents = [
@@ -124,12 +127,50 @@ router.get('/:id/timeline', verifyToken, async (req, res) => {
     const events = [...storedEvents, ...derivedEvents]
       .sort((first, second) => new Date(second.date || 0) - new Date(first.date || 0))
       .slice((page - 1) * limit, page * limit);
-    const trendEvents = storedEvents.filter((event) => event.details?.metric && Number.isFinite(Number(event.details?.value)));
-    const healthTrends = trendEvents.reduce((result, event) => {
-      const metric = event.details.metric;
-      (result[metric] ||= []).push({ label: new Date(event.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), value: Number(event.details.value), unit: event.details.unit || '' });
-      return result;
-    }, {});
+    const normalizeMetric = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const metricName = (value) => {
+      const metric = normalizeMetric(value);
+      if (metric.includes('bloodpressure') || metric === 'bp' || metric.includes('systolic')) return 'bloodPressure';
+      if (metric.includes('heartrate') || metric.includes('pulse')) return 'heartRate';
+      if (metric.includes('hba1c') || metric.includes('hemoglobina1c') || metric.includes('glucose') || metric.includes('bloodsugar') || metric === 'fbs') return 'glucose';
+      if (metric.includes('weight')) return 'weight';
+      return null;
+    };
+    const numericValue = (value, metric) => {
+      const text = String(value ?? '').replace(/,/g, '');
+      const match = text.match(/-?\d+(?:\.\d+)?/);
+      if (!match || (metric === 'bloodPressure' && text.includes('/') && !text.trim().startsWith(match[0]))) return null;
+      const number = Number(match[0]);
+      return Number.isFinite(number) && number > 0 ? number : null;
+    };
+    const healthTrends = {};
+    const addTrend = (metric, value, date, unit) => {
+      const number = numericValue(value, metric);
+      const trendDate = new Date(date);
+      if (!metric || number === null || Number.isNaN(trendDate.getTime())) return;
+      (healthTrends[metric] ||= []).push({
+        label: trendDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+        value: number,
+        unit: unit || '',
+        date: trendDate,
+      });
+    };
+    storedEvents.forEach((event) => {
+      const metric = metricName(event.details?.metric);
+      addTrend(metric, event.details?.value, event.date, event.details?.unit);
+    });
+    labResults.forEach((lab) => {
+      (lab.results || []).forEach((result) => {
+        const metric = metricName(`${lab.testName} ${result.parameter}`);
+        addTrend(metric, result.value, lab.testDate || lab.createdAt, result.unit);
+      });
+    });
+    reports.forEach((report) => {
+      const metric = metricName(`${report.testName} ${report.name} ${report.description}`);
+      addTrend(metric, report.clinicalResult, report.date || report.createdAt, '');
+    });
+    if (patient.weight) addTrend('weight', patient.weight, patient.updatedAt || patient.createdAt, 'kg');
+    Object.values(healthTrends).forEach((values) => values.sort((first, second) => first.date - second.date));
     res.json({ events, healthTrends });
   } catch (err) {
     res.status(500).json({ message: err.message });

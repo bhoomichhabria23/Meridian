@@ -77,7 +77,7 @@ export function AuthProvider({ children }) {
             uid: serverUser.uid || serverUser.id,
             email: serverUser.email,
             phone: serverUser.phone || "",
-            name: serverUser.name,
+            name: serverUser.name || serverUser.fullName || serverUser.displayName || serverUser.email?.split("@")[0] || "Patient",
             role: serverUser.role || "patient",
             firebaseUid: serverUser.uid || serverUser.id,
             specialization: serverUser.specialization || "",
