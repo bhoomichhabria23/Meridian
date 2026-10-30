@@ -45,6 +45,7 @@ const dateTime = (value) => {
 };
 function ReminderCard({ item, onEdit, onDelete, onUpdate }) {
   const urgent = item.priority === "high";
+  const overdue = new Date(item.date).getTime() < Date.now() && item.status === "active";
   return (
     <article
       className={`rounded-2xl border bg-white p-5 shadow-[0_8px_28px_rgba(31,105,59,0.04)] ${urgent ? "border-[#cddcae]" : "border-[#deece1]"}`}
@@ -57,7 +58,10 @@ function ReminderCard({ item, onEdit, onDelete, onUpdate }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-bold text-[#1b3c2a]">{item.title}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-[#1b3c2a]">{item.title}</h3>
+              {overdue && <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-bold uppercase text-red-700">Overdue</span>}
+            </div>
           </div>
           <p className="mt-1 text-xs capitalize text-[#7d8e84]">
             {item.type?.replace("_", " ")} Â· {dateTime(item.date)}

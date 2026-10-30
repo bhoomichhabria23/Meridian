@@ -2,12 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/auth');
 const Reminder = require('../models/Reminder');
+const SafetyEngine = require('../services/safetyEngine');
 
 router.use(verifyToken);
 const userId = (req) => req.user._id || req.user.id;
 
 router.get('/', async (req, res) => {
-  try { res.json(await Reminder.find({ userId: userId(req) }).sort({ date: 1 })); }
+  try {
+    await SafetyEngine.createPreventiveCareReminders(userId(req));
+    res.json(await Reminder.find({ userId: userId(req) }).sort({ date: 1 }));
+  }
   catch (error) { res.status(500).json({ message: error.message }); }
 });
 

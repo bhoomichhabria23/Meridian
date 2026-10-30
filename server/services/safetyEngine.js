@@ -4,8 +4,95 @@ const Medication = require("../models/Medication");
 const LabResult = require("../models/LabResult");
 const Diagnosis = require("../models/Diagnosis");
 const Reminder = require("../models/Reminder");
+const Patient = require("../models/Patient");
 
 class SafetyEngine {
+  static async createPreventiveCareReminders(patientId) {
+    const patient = await Patient.findOne({ userId: patientId }).select("age dateOfBirth gender").lean();
+    if (!patient) return [];
+
+    let age = Number(patient.age || 0);
+    if ((!age || Number.isNaN(age)) && patient.dateOfBirth) {
+      age = Math.floor((Date.now() - new Date(patient.dateOfBirth).getTime()) / 31557600000);
+    }
+    if (!age || age < 18) return [];
+
+    const labs = await LabResult.find({ patientId }).sort({ testDate: -1 }).lean();
+    const preventiveTests = [
+      { title: "Annual preventive wellness lab review", identity: "cbc", intervalDays: 365, priority: "medium" },
+      { title: "Preventive lipid profile", identity: "lipid", intervalDays: 365, priority: age >= 40 ? "high" : "medium", minimumAge: 40 },
+      { title: "Diabetes screening (HbA1c)", identity: "hba1c", intervalDays: 365, priority: "medium", minimumAge: 45 },
+    ];
+
+    const created = [];
+    for (const schedule of preventiveTests) {
+      if (schedule.minimumAge && age < schedule.minimumAge) continue;
+      const matchingLab = labs.find((lab) => {
+        const identity = this.normalizeTestIdentity(lab.testCode) || this.normalizeTestIdentity(lab.testName);
+        return identity.includes(schedule.identity) || schedule.identity.includes(identity);
+      });
+      const dueDate = matchingLab
+        ? new Date(new Date(matchingLab.testDate).getTime() + schedule.intervalDays * 86400000)
+        : new Date(Date.now() - 86400000);
+      if (dueDate > new Date()) continue;
+
+      const existing = await Reminder.findOne({
+        userId: patientId,
+        title: schedule.title,
+        status: { $in: ["active", "snoozed"] },
+      }).lean();
+      if (existing) continue;
+
+      created.push(await Reminder.create({
+        userId: patientId,
+        title: schedule.title,
+        type: "lab_test",
+        date: dueDate,
+        description: "Preventive care screening is overdue. Review the test and arrange it if clinically appropriate.",
+        priority: schedule.priority,
+        status: "active",
+      }));
+    }
+    return created;
+  }
+
+  static normalizeTestIdentity(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  }
+
+  static findDuplicateTests(labs, candidate = null, windowDays = 30) {
+    const records = candidate ? [...labs, candidate] : labs;
+    const normalizedRecords = records
+      .map((lab) => ({
+        lab,
+        identity: this.normalizeTestIdentity(lab.testCode) || this.normalizeTestIdentity(lab.testName),
+        date: new Date(lab.testDate),
+      }))
+      .filter((record) => record.identity && !Number.isNaN(record.date.getTime()));
+
+    const groups = new Map();
+    normalizedRecords.forEach((record) => {
+      const group = groups.get(record.identity) || [];
+      group.push(record);
+      groups.set(record.identity, group);
+    });
+
+    const windowMs = windowDays * 24 * 60 * 60 * 1000;
+    const duplicates = [];
+    groups.forEach((group) => {
+      group.sort((first, second) => first.date - second.date);
+      for (let index = 1; index < group.length; index += 1) {
+        const previous = group[index - 1];
+        if (group[index].date - previous.date <= windowMs) {
+          duplicates.push({ previous: previous.lab, duplicate: group[index].lab });
+        }
+      }
+    });
+    return duplicates;
+  }
+
   /**
    * Analyze prescription for safety against patient history
    */
@@ -103,11 +190,12 @@ class SafetyEngine {
   }
 
   static async analyzePatientHistory(patientId) {
+    await this.createPreventiveCareReminders(patientId);
     const [allergies, medications, diagnoses, labs, overdueReminders] = await Promise.all([
       Allergy.find({ patientId, isActive: true }).lean(),
       Medication.find({ patientId, status: { $in: ["active", "ongoing"] } }).lean(),
       Diagnosis.find({ patientId, status: { $in: ["active", "chronic"] } }).lean(),
-      LabResult.find({ patientId }).sort({ testDate: -1 }).limit(10).lean(),
+      LabResult.find({ patientId }).sort({ testDate: -1 }).lean(),
       Reminder.find({ userId: patientId, type: "lab_test", status: "active", date: { $lt: new Date() } }).sort({ date: 1 }).lean(),
     ]);
     const alerts = [];
@@ -121,27 +209,15 @@ class SafetyEngine {
       relevantRecord: { recordType: "reminder", recordId: reminder._id, recordDetails: reminder.title },
       date: reminder.date,
     }));
-    const duplicateGroups = new Map();
-    for (const lab of labs) {
-      const testDate = new Date(lab.testDate);
-      const testIdentity = normalize(lab.testCode) || normalize(lab.testName);
-      if (!testIdentity || Number.isNaN(testDate.getTime())) continue;
-      const duplicateKey = `${testIdentity}:${testDate.toISOString().slice(0, 10)}`;
-      const group = duplicateGroups.get(duplicateKey) || [];
-      group.push(lab);
-      duplicateGroups.set(duplicateKey, group);
-    }
-    const duplicateTests = [...duplicateGroups.values()]
-      .filter((group) => group.length > 1)
-      .map((group) => ({
-        type: "duplicate_test",
-        severity: "MEDIUM",
-        message: `Possible duplicate ${group[0].testName} records on ${new Date(group[0].testDate).toLocaleDateString("en-GB")}.`,
-        evidence: `${group.length} records share the same test identifier and date.`,
-        recommendation: "Compare the source records before ordering the test again.",
-        relevantRecord: { recordType: "lab", recordId: group[1]._id, recordDetails: group[0].testName },
-        date: group[0].testDate,
-      }));
+    const duplicateTests = SafetyEngine.findDuplicateTests(labs).map(({ previous, duplicate }) => ({
+      type: "duplicate_test",
+      severity: "MEDIUM",
+      message: `Possible duplicate ${duplicate.testName} recorded within 30 days.`,
+      evidence: `${previous.testName} was recorded on ${new Date(previous.testDate).toLocaleDateString("en-GB")}; ${duplicate.testName} was recorded on ${new Date(duplicate.testDate).toLocaleDateString("en-GB")}.`,
+      recommendation: "Compare the source records before ordering the test again.",
+      relevantRecord: { recordType: "lab", recordId: duplicate._id, recordDetails: duplicate.testName },
+      date: duplicate.testDate,
+    }));
     const labTrends = [];
     const labsByParameter = new Map();
     for (const lab of labs) {

@@ -7,6 +7,7 @@ const AuditLog = require("../models/AuditLog");
 const Patient = require("../models/Patient");
 const mongoose = require("mongoose");
 const { verifyToken } = require("../middleware/auth");
+const SafetyEngine = require("../services/safetyEngine");
 
 const router = express.Router();
 
@@ -406,10 +407,30 @@ router.post(
         notes,
       });
 
+      const candidateDate = new Date(testDate);
+      const windowStart = new Date(candidateDate);
+      windowStart.setDate(windowStart.getDate() - 30);
+      const windowEnd = new Date(candidateDate);
+      windowEnd.setDate(windowEnd.getDate() + 30);
+      const recentLabs = await LabResult.find({
+        patientId: req.params.patientId,
+        testDate: { $gte: windowStart, $lte: windowEnd},
+        _id: { $ne: lab._id },
+      }).lean();
+      const duplicateMatches = SafetyEngine.findDuplicateTests(recentLabs, lab, 30);
+
       return res.status(201).json({
         success: true,
         message: "Lab result added successfully",
         data: lab,
+        duplicateDetection: {
+          detected: duplicateMatches.length > 0,
+          matches: duplicateMatches.map(({ previous }) => ({
+            labId: previous._id,
+            testName: previous.testName,
+            testDate: previous.testDate,
+          })),
+        },
       });
     } catch (error) {
       console.error("Error adding lab result:", error);

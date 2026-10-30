@@ -2,15 +2,12 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Prescription = require("../models/Prescription");
 const Patient = require("../models/Patient");
-<<<<<<< Updated upstream
 const Doctor = require("../models/Doctor");
 const Appointment = require("../models/Appointment");
-=======
 const Allergy = require("../models/Allergy");
 const Medication = require("../models/Medication");
 const Diagnosis = require("../models/Diagnosis");
 const LabResult = require("../models/LabResult");
->>>>>>> Stashed changes
 const SafetyAlert = require("../models/SafetyAlert");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
@@ -20,7 +17,6 @@ const { verifyToken } = require("../middleware/auth");
 
 const router = express.Router();
 
-<<<<<<< Updated upstream
 router.get("/patient/:patientId/current-alerts", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "doctor") {
@@ -84,7 +80,7 @@ router.post("/patient/:patientId/current-alerts/review", verifyToken, async (req
     res.status(500).json({ message: "Unable to record safety alert review." });
   }
 });
-=======
+
 const buildPatientSafetyAlerts = async (patientId) => {
   const patientRecord = await Patient.findById(patientId).select("_id userId age gender").lean();
   const patientUserId = patientRecord?.userId || patientId;
@@ -374,7 +370,6 @@ const buildPatientSafetyAlerts = async (patientId) => {
     return order[b.status] - order[a.status];
   });
 };
->>>>>>> Stashed changes
 
 router.post("/medication-review", verifyToken, async (req, res) => {
   try {
