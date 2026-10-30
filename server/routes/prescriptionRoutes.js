@@ -13,6 +13,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 const { createEvent } = require("../utils/medicalEvent");
 const SafetyEngine = require("../services/safetyEngine");
 const SafetyAlert = require("../models/SafetyAlert");
+const AuditLog = require("../models/AuditLog");
 
 const uploadDirectory = path.join(__dirname, "../uploads/prescriptions");
 
@@ -119,6 +120,10 @@ router.post("/", authMiddleware, upload.array("attachments", 5), async (req, res
     if (!patientId || !diagnosis || !Array.isArray(medications) || medications.length === 0) {
       return res.status(400).json({ message: "Patient, diagnosis and at least one medication are required" });
     }
+    const missingOverrideReason = medications.find((medication) => medication.overrideRequired && String(medication.overrideReason || "").trim().length < 3);
+    if (missingOverrideReason) {
+      return res.status(400).json({ message: `A clinical override reason is required for ${missingOverrideReason.name || "this medication"}.` });
+    }
 
     const patient = await Patient.findById(patientId).select("userId");
     if (!patient) return res.status(404).json({ message: "Patient not found" });
@@ -151,6 +156,7 @@ router.post("/", authMiddleware, upload.array("attachments", 5), async (req, res
         frequency: medication.frequency || "",
         timing: medication.timing || medication.instructions || "",
         duration: medication.duration || "",
+        overrideReason: String(medication.overrideReason || "").trim(),
       })),
       attachments: normalizedAttachments,
       notes: notes || "",
@@ -163,6 +169,21 @@ router.post("/", authMiddleware, upload.array("attachments", 5), async (req, res
       status: safetyAnalysis.status,
       alerts: safetyAnalysis.alerts,
     });
+    const overrideRecords = prescription.medications
+      .filter((medication) => medication.overrideReason)
+      .map((medication) => ({ medication: medication.name, reason: medication.overrideReason }));
+    if (overrideRecords.length > 0) {
+      await AuditLog.create({
+        userId: req.user.id,
+        role: "doctor",
+        action: "SAFETY_ALERT_OVERRIDDEN",
+        entityType: "Prescription",
+        entityId: prescription._id,
+        targetUserId: patient.userId,
+        details: { overrides: overrideRecords },
+      });
+    }
+
     await createEvent({
       patientId: patient._id,
       type: "prescription",

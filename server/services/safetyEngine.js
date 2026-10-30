@@ -190,7 +190,6 @@ class SafetyEngine {
   }
 
   static async analyzePatientHistory(patientId) {
-    await this.createPreventiveCareReminders(patientId);
     const [allergies, medications, diagnoses, labs, overdueReminders] = await Promise.all([
       Allergy.find({ patientId, isActive: true }).lean(),
       Medication.find({ patientId, status: { $in: ["active", "ongoing"] } }).lean(),

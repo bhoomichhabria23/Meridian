@@ -3,6 +3,7 @@ const router = express.Router();
 const axios = require("axios");
 
 const Medication = require("../models/Medication");
+const MedicationDose = require("../models/MedicationDose");
 const Patient = require("../models/Patient");
 const Doctor = require("../models/Doctor");
 const Appointment = require("../models/Appointment");
@@ -188,8 +189,15 @@ router.post(
         });
       }
 
-      medication.dosesTakenThisMonth = Number(medication.dosesTakenThisMonth || 0) + 1;
-      medication.dosesToday = Number(medication.dosesToday || 0) + 1;
+      const requestedSchedule = req.body?.scheduledFor ? new Date(req.body.scheduledFor) : new Date();
+      const scheduledFor = Number.isNaN(requestedSchedule.getTime()) ? new Date() : requestedSchedule;
+      scheduledFor.setSeconds(0, 0);
+      const existingDose = await MedicationDose.findOne({ medicationId: medication._id, scheduledFor }).lean();
+      if (!existingDose) {
+        await MedicationDose.create({ medicationId: medication._id, patientId: medication.patientId, scheduledFor });
+        medication.dosesTakenThisMonth = Number(medication.dosesTakenThisMonth || 0) + 1;
+        medication.dosesToday = Number(medication.dosesToday || 0) + 1;
+      }
       if (medication.endDate && medication.endDate <= new Date()) {
         medication.status = "completed";
       }
@@ -197,8 +205,9 @@ router.post(
       await medication.save();
 
       res.status(200).json({
-        message: "Medication marked as taken",
+        message: existingDose ? "Dose was already recorded" : "Medication marked as taken",
         medication,
+        alreadyRecorded: Boolean(existingDose),
       });
     } catch (error) {
       console.error(error);
@@ -209,6 +218,28 @@ router.post(
     }
   }
 );
+
+router.get("/adherence", authMiddleware, async (req, res) => {
+  try {
+    const medications = await Medication.find({ patientId: req.user.id }).select("_id name status frequency startDate endDate").lean();
+    const medicationIds = medications.map((medication) => medication._id);
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const doses = await MedicationDose.find({ patientId: req.user.id, medicationId: { $in: medicationIds }, scheduledFor: { $gte: since } }).sort({ scheduledFor: -1 }).lean();
+    const activeMedications = medications.filter((medication) => medication.status === "active");
+    const expectedDoses = activeMedications.reduce((total, medication) => total + (String(medication.frequency || "").match(/twice|2|bid/i) ? 2 : String(medication.frequency || "").match(/three|thrice|3|tid/i) ? 3 : 1) * 30, 0);
+    const adherence = expectedDoses ? Math.min(100, Math.round((doses.length / expectedDoses) * 100)) : 0;
+    res.json({
+      adherence,
+      takenDoses: doses.length,
+      expectedDoses,
+      pendingDoses: Math.max(0, expectedDoses - doses.length),
+      recentDoses: doses.slice(0, 30),
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Unable to calculate medication adherence." });
+  }
+});
 
 router.patch("/:id/stop", authMiddleware, async (req, res) => {
   try {

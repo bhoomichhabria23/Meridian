@@ -60,6 +60,7 @@ export default function LabResults() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [testStatus, setTestStatus] = useState({ completed: [], pending: [], scheduled: [] });
 
   useEffect(() => {
     const load = async () => {
@@ -71,6 +72,8 @@ export default function LabResults() {
           api.get("/api/reports/lab-results"),
           patientId ? api.get(`/api/medical-records/labs/${encodeURIComponent(patientId)}`) : Promise.resolve({ data: [] }),
         ]);
+        const testStatusResponse = await api.get("/api/reminders/test-status").catch(() => ({ data: { completed: [], pending: [], scheduled: [] } }));
+        setTestStatus(testStatusResponse.data || { completed: [], pending: [], scheduled: [] });
         const reportRecords = Array.isArray(reportsResponse.data) ? reportsResponse.data : reportsResponse.data?.reports || [];
         const labRecords = Array.isArray(labsResponse.data) ? labsResponse.data : labsResponse.data?.data || [];
         const records = [
@@ -115,6 +118,8 @@ export default function LabResults() {
   };
 
   return <div className="min-h-screen bg-[#f5faf7] text-[#183a28]"><Navbar /><main className="mx-auto max-w-[1500px] space-y-6 px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+    <section className="grid gap-4 sm:grid-cols-2"><Metric icon={ShieldCheck} label="Completed tests" value={testStatus.completed.length} caption="Results recorded in your history" /><Metric icon={CalendarDays} label="Pending tests" value={new Set([...testStatus.pending.map((item) => item.title), ...testStatus.scheduled.map((item) => item.testName)]).size} caption="Clinician-approved tests still due or scheduled" /></section>
+    {(testStatus.pending.length || testStatus.scheduled.length) > 0 && <section className="rounded-2xl border border-[#dcece1] bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#25854d]" /><h2 className="font-bold">Pending and scheduled tests</h2></div><div className="mt-3 flex flex-wrap gap-2">{[...testStatus.pending.map((item) => ({ name: item.title, date: item.date })), ...testStatus.scheduled.map((item) => ({ name: item.testName, date: item.nextDueDate }))].filter((item, index, list) => list.findIndex((candidate) => candidate.name === item.name) === index).map((item) => <span key={item.name} className="rounded-full bg-[#f0f8f2] px-3 py-1.5 text-xs font-bold text-[#3d6b4d]">{item.name} · {formatDate(item.date)}</span>)}</div></section>}
     <section className="relative overflow-hidden rounded-[26px] border border-[#cfe7d6] bg-gradient-to-br from-white via-white to-[#e8f7ec] p-6 shadow-[0_14px_44px_rgba(31,105,59,0.08)] sm:p-8"><div className="relative z-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#25854d]">Clinical records</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-[#183a28]">Lab Results</h1><p className="mt-2 max-w-xl text-sm leading-6 text-[#6d8375]">Review your test history, monitor changes, and keep your care team informed.</p></div><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#25854d] shadow-sm"><FlaskConical size={28} /></div></div></section>
 
     <section className="grid gap-4 sm:grid-cols-3"><Metric icon={FlaskConical} label="Total records" value={results.length} caption="Uploaded reports and test results" /><Metric icon={ShieldCheck} label="Normal results" value={normalCount} caption="Marked within expected range" /><Metric icon={AlertTriangle} label="Needs attention" value={attentionCount} caption="Marked abnormal or critical" /></section>

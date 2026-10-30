@@ -67,6 +67,12 @@ const prescriptionMedicationSchema =
         type: String,
         default: "",
       },
+
+      overrideReason: {
+        type: String,
+        trim: true,
+        default: "",
+      },
     },
     { _id: true }
   );

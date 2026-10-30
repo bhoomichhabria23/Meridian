@@ -20,7 +20,7 @@ function DrugRow({ drug, patientId, onRemove, onChange }) {
   const [checking, setChecking] = useState(false);
   const [severity, setSeverity] = useState(null);
   const [detail, setDetail] = useState('');
-  const [ackReason, setAckReason] = useState('');
+  const [ackReason, setAckReason] = useState(String(drug.overrideReason || ''));
 
   const checkInteraction = useCallback(async (name) => {
     if (!name || !patientId) return;
@@ -42,6 +42,10 @@ function DrugRow({ drug, patientId, onRemove, onChange }) {
     const timer = setTimeout(() => checkInteraction(drug.name), 600);
     return () => clearTimeout(timer);
   }, [checkInteraction, drug.name]);
+
+  useEffect(() => {
+    onChange('overrideRequired', severity === 'danger');
+  }, [severity]);
 
   const style = severity ? SEVERITY_STYLE[severity] : null;
 
@@ -66,7 +70,7 @@ function DrugRow({ drug, patientId, onRemove, onChange }) {
               <span className={style.badge}>{style.icon} {style.label}</span>
               {detail && <p className="mt-2 text-xs leading-5 text-[#6a7d71]">{detail}</p>}
               {severity === 'danger' && (
-                <input className="mt-2 h-10 w-full rounded-xl border border-red-200 bg-red-50 px-3 text-xs text-[#183a28] outline-none focus:border-red-300" placeholder="Clinical reason to override" value={ackReason} onChange={(event) => setAckReason(event.target.value)} />
+                <input required minLength={3} className="mt-2 h-10 w-full rounded-xl border border-red-200 bg-red-50 px-3 text-xs text-[#183a28] outline-none focus:border-red-300" placeholder="Clinical reason to override (required)" value={ackReason} onChange={(event) => { const reason = event.target.value; setAckReason(reason); onChange('overrideReason', reason); }} />
               )}
             </div>
           )}
@@ -131,6 +135,8 @@ export default function NewPrescription() {
   const handleSave = async () => {
     if (!form.diagnosis) return toast.error('Diagnosis is required');
     if (form.medications.some((medication) => !medication.name)) return toast.error('All medication names are required');
+    const missingOverrideReason = form.medications.find((medication) => medication.overrideRequired && String(medication.overrideReason || '').trim().length < 3);
+    if (missingOverrideReason) return toast.error(`Enter a clinical reason for overriding the alert on ${missingOverrideReason.name}.`);
 
     setSaving(true);
     try {

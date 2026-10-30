@@ -162,6 +162,7 @@ export default function Medications() {
   const [selected, setSelected] = useState(null);
   const [interactions, setInteractions] = useState({ count: 0, interactions: [] });
   const [interactionsOpen, setInteractionsOpen] = useState(false);
+  const [adherence, setAdherence] = useState({ adherence: 0, takenDoses: 0, expectedDoses: 0, pendingDoses: 0 });
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [addForm, setAddForm] = useState({
@@ -187,6 +188,11 @@ export default function Medications() {
       }
       const result = await response.json();
       setItems(Array.isArray(result) ? result : result.medications || []);
+      const adherenceResponse = await fetch(`${API_URL}/api/medications/adherence`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (adherenceResponse.ok) setAdherence(await adherenceResponse.json());
       const interactionResponse = await fetch(`${API_URL}/api/medications/interactions`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -315,6 +321,12 @@ export default function Medications() {
             note="Scheduled reminders"
           />
           <Stat
+            icon={Activity}
+            label="30-day adherence"
+            value={`${adherence.adherence}%`}
+            note={`${adherence.takenDoses} of ${adherence.expectedDoses} doses recorded`}
+          />
+          <Stat
             icon={AlertTriangle}
             label="Potential interactions"
             value={interactions.count}
@@ -403,6 +415,20 @@ export default function Medications() {
                 {items.length
                   ? "Review your next scheduled dose and stay consistent."
                   : "Your schedule will appear when medications are prescribed."}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[#deece1] bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-bold">30-day adherence</h2>
+                <span className="text-lg font-black text-[#25854d]">{adherence.adherence}%</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e6f0e8]">
+                <div className="h-full rounded-full bg-[#25854d] transition-all" style={{ width: `${adherence.adherence}%` }} />
+              </div>
+              <p className="mt-3 text-xs leading-5 text-[#788a80]">
+                {adherence.pendingDoses
+                  ? `${adherence.pendingDoses} expected dose${adherence.pendingDoses === 1 ? "" : "s"} not yet recorded in the last 30 days.`
+                  : "All expected doses are recorded for the last 30 days."}
               </p>
             </div>
           </aside>

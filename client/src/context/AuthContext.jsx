@@ -69,7 +69,7 @@ export function AuthProvider({ children }) {
 
     const initAuth = async () => {
       try {
-        const serverUser = await verifyServerSession(3000);
+        const serverUser = await verifyServerSession(1200);
 
         if (serverUser && isMounted) {
           const userData = {

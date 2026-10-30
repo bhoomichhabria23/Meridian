@@ -67,6 +67,7 @@ router.post("/patient/:patientId/current-alerts/review", verifyToken, async (req
     const reason = String(req.body?.reason || "").trim();
     const action = String(req.body?.action || "acknowledged").trim();
     if (!reason) return res.status(400).json({ message: "A review reason is required." });
+    if (!["acknowledged", "overridden"].includes(action)) return res.status(400).json({ message: "Invalid safety review action." });
     const patient = await Patient.findById(req.params.patientId).select("userId assignedDoctors").lean();
     if (!patient) return res.status(404).json({ message: "Patient not found." });
     const doctor = await Doctor.findOne({ userId: req.user.id }).select("_id").lean();

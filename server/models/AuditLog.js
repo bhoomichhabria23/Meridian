@@ -28,6 +28,8 @@ const auditLogSchema = new mongoose.Schema(
         "PRESCRIPTION_CREATED",
         "SAFETY_ANALYSIS_PERFORMED",
         "SAFETY_ALERT_GENERATED",
+        "SAFETY_ALERT_ACKNOWLEDGED",
+        "SAFETY_ALERT_OVERRIDDEN",
         "CHATBOT_USED",
         "DASHBOARD_VIEWED",
         "PATIENT_LIST_VIEWED",

@@ -1,4 +1,4 @@
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 
 import { db } from "../firebase";
 import { API_BASE_URL } from "../api/config";
@@ -35,21 +35,11 @@ export async function saveUserProfileToFirebase(firebaseUser, profile = {}) {
 }
 
 export async function exchangeFirebaseSession(firebaseUser, profile = {}) {
-  const profilePromise = (!profile.phone || !profile.specialization) && firebaseUser.uid
-    ? getDoc(doc(db, "users", firebaseUser.uid)).catch((error) => {
-      console.warn("Firebase profile could not be loaded:", error.message);
-      return null;
-    })
-    : Promise.resolve(null);
-  const [idToken, profileSnapshot] = await Promise.all([
-    firebaseUser.getIdToken(),
-    profilePromise,
-  ]);
-  const storedProfile = profileSnapshot?.exists() ? profileSnapshot.data() : null;
+  const idToken = await firebaseUser.getIdToken();
   const sessionProfile = {
     ...profile,
-    phone: profile.phone || storedProfile?.phone || "",
-    specialization: profile.specialization || storedProfile?.specialization || "",
+    phone: profile.phone || "",
+    specialization: profile.specialization || "",
   };
   const controller = new AbortController();
   const requestTimeout = setTimeout(() => controller.abort(), 12000);

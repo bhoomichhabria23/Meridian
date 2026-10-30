@@ -35,6 +35,9 @@ const PatientProfile = () => {
   const [uploadingReport, setUploadingReport] = useState(false);
   const [alertReviewReasons, setAlertReviewReasons] = useState({});
   const [reviewingAlert, setReviewingAlert] = useState("");
+  const [careSchedules, setCareSchedules] = useState([]);
+  const [scheduleForm, setScheduleForm] = useState({ testName: "", description: "", intervalDays: "365", nextDueDate: new Date().toISOString().slice(0, 10), priority: "medium" });
+  const [savingSchedule, setSavingSchedule] = useState(false);
   const [tab, setTab] = useState(
     "timeline"
   );
@@ -64,6 +67,9 @@ const PatientProfile = () => {
       const reportData = reportsResponse.data?.reports || reportsResponse.data?.data || reportsResponse.data;
       setPatientReports(Array.isArray(reportData) ? reportData : []);
 
+      const schedulesResponse = await api.get(`/api/reminders/schedules/${patientId}`).catch(() => ({ data: [] }));
+      setCareSchedules(Array.isArray(schedulesResponse.data) ? schedulesResponse.data : schedulesResponse.data?.schedules || []);
+
       setAlertsError("");
       try {
         const alertsResponse = await api.get(`/api/safety/patient/${patientId}/current-alerts`);
@@ -83,6 +89,32 @@ const PatientProfile = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveCareSchedule = async (event) => {
+    event.preventDefault();
+    try {
+      setSavingSchedule(true);
+      await api.post('/api/reminders/schedules', { ...scheduleForm, patientId });
+      const response = await api.get(`/api/reminders/schedules/${patientId}`);
+      setCareSchedules(Array.isArray(response.data) ? response.data : []);
+      setScheduleForm({ testName: "", description: "", intervalDays: "365", nextDueDate: new Date().toISOString().slice(0, 10), priority: "medium" });
+      toast.success("Care schedule approved");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Unable to approve care schedule");
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const removeCareSchedule = async (scheduleId) => {
+    try {
+      await api.delete(`/api/reminders/schedules/${scheduleId}`);
+      setCareSchedules((current) => current.filter((schedule) => schedule._id !== scheduleId));
+      toast.success("Care schedule removed");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Unable to remove care schedule");
     }
   };
 
@@ -284,6 +316,7 @@ const PatientProfile = () => {
           {tab === "timeline" && <DiagnosisEntry patientId={patientId} onSaved={fetchPatientData} />}
           <div className="flex border-b border-[#edf3ee] p-2">
             <button type="button" onClick={() => setTab("timeline")} className={`flex-1 rounded-xl px-4 py-3 text-sm font-bold transition ${tab === "timeline" ? "bg-[#eaf7ed] text-[#159447]" : "text-[#71857a] hover:bg-[#f8fcf9]"}`}><Activity className="mr-2 inline" size={16} />Medical timeline</button>
+            <button type="button" onClick={() => setTab("schedules")} className={`flex-1 rounded-xl px-4 py-3 text-sm font-bold transition ${tab === "schedules" ? "bg-[#eef6ff] text-[#3170a5]" : "text-[#71857a] hover:bg-[#f8fcf9]"}`}><CalendarDays className="mr-2 inline" size={16} />Care schedules</button>
             <button type="button" onClick={() => setTab("alerts")} className={`flex-1 rounded-xl px-4 py-3 text-sm font-bold transition ${tab === "alerts" ? "bg-[#fff3ed] text-[#c15b3c]" : "text-[#71857a] hover:bg-[#f8fcf9]"}`}><AlertTriangle className="mr-2 inline" size={16} />Safety alerts <span className="ml-1">({alertCount})</span></button>
           </div>
 
@@ -292,6 +325,7 @@ const PatientProfile = () => {
             {tab === "timeline" && <DoctorReportsSection reports={patientReports} onView={viewReport} onSave={saveReportReview} />}
             {tab === "timeline" && (timeline.length ? <div className="space-y-4">{timeline.map((event, index) => <div key={event._id || `${event.type}-${index}`} className="relative rounded-2xl border border-[#e5efe7] bg-[#fbfefc] p-5"><div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eaf7ed] text-[#159447]"><Activity size={18} /></div><div><h3 className="font-black capitalize text-[#183a28]">{String(event.type || "clinical event").replaceAll("_", " ")}</h3><p className="text-xs text-[#84978b]">{formatDate(event.date)}</p></div></div><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase text-[#6e8576]">Record {timeline.length - index}</span></div><p className="mt-4 text-sm leading-6 text-[#50685a]">{event.description || event.title || "Clinical event recorded"}</p>{event.data && <div className="mt-3 grid gap-2 text-xs text-[#6e8576] sm:grid-cols-2">{event.data.condition && <p><b>Condition:</b> {event.data.condition}</p>}{event.data.name && <p><b>Medication:</b> {event.data.name}</p>}{event.data.dosage && <p><b>Dosage:</b> {event.data.dosage}</p>}{event.data.status && <p><b>Status:</b> {event.data.status}</p>}</div>}</div>)}</div> : <div className="py-12 text-center"><Activity size={30} className="mx-auto text-[#8bb69a]" /><p className="mt-3 font-bold text-[#315542]">No medical events recorded</p><p className="mt-1 text-sm text-[#84978b]">New clinical activity will appear here.</p></div>)}
 
+            {tab === "schedules" && <div className="space-y-5"><form onSubmit={saveCareSchedule} className="grid gap-3 rounded-2xl border border-[#dfeee3] bg-[#fbfefc] p-4 md:grid-cols-2"><div><label className="text-xs font-bold text-[#567064]">Test or screening</label><input required value={scheduleForm.testName} onChange={(event) => setScheduleForm((current) => ({ ...current, testName: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border border-[#dfeee3] px-3 text-sm" placeholder="e.g. Lipid profile" /></div><div><label className="text-xs font-bold text-[#567064]">First due date</label><input required type="date" value={scheduleForm.nextDueDate} onChange={(event) => setScheduleForm((current) => ({ ...current, nextDueDate: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border border-[#dfeee3] px-3 text-sm" /></div><div><label className="text-xs font-bold text-[#567064]">Repeat every (days)</label><input required min="1" max="3650" type="number" value={scheduleForm.intervalDays} onChange={(event) => setScheduleForm((current) => ({ ...current, intervalDays: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border border-[#dfeee3] px-3 text-sm" /></div><div><label className="text-xs font-bold text-[#567064]">Priority</label><select value={scheduleForm.priority} onChange={(event) => setScheduleForm((current) => ({ ...current, priority: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border border-[#dfeee3] px-3 text-sm"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div className="md:col-span-2"><label className="text-xs font-bold text-[#567064]">Clinical instructions</label><textarea value={scheduleForm.description} onChange={(event) => setScheduleForm((current) => ({ ...current, description: event.target.value }))} rows={2} className="mt-1 w-full rounded-lg border border-[#dfeee3] p-3 text-sm" placeholder="Optional instructions for the patient" /></div><div className="md:col-span-2 flex justify-end"><button disabled={savingSchedule} className="rounded-xl bg-[#257c48] px-4 py-2 text-sm font-bold text-white disabled:opacity-60">{savingSchedule ? "Approving..." : "Approve schedule"}</button></div></form>{careSchedules.length ? <div className="space-y-3">{careSchedules.map((schedule) => <div key={schedule._id} className="flex flex-col gap-3 rounded-2xl border border-[#dfeee3] p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold text-[#183a28]">{schedule.testName}</p><p className="mt-1 text-xs text-[#71857a]">Next: {formatDate(schedule.nextDueDate)} · Every {schedule.intervalDays} days · {schedule.priority} priority</p>{schedule.description && <p className="mt-2 text-sm text-[#52695b]">{schedule.description}</p>}</div><button type="button" onClick={() => removeCareSchedule(schedule._id)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700">Remove</button></div>)}</div> : <div className="py-8 text-center"><CalendarDays size={28} className="mx-auto text-[#82a98d]" /><p className="mt-2 font-bold text-[#315542]">No approved care schedules</p></div>}</div>}
             {tab === "alerts" && alertsError && <div role="alert" className="py-12 text-center"><AlertTriangle size={30} className="mx-auto text-amber-600" /><p className="mt-3 font-bold text-[#315542]">Unable to load safety alerts</p><p className="mt-1 text-sm text-[#84978b]">{alertsError}</p></div>}
             {tab === "alerts" && !alertsError && (alerts.length ? <div className="space-y-4">{alerts.map((alert, index) => <div key={alert._id || index} className={`rounded-2xl border p-5 ${alert.status === "HIGH_RISK" ? "border-red-200 bg-red-50" : alert.status === "WARNING" ? "border-amber-200 bg-amber-50" : "border-[#cde8d4] bg-[#f2fbf4]"}`}><div className="flex items-center justify-between gap-3"><h3 className="font-black text-[#183a28]">{alert.title || alert.status || "Safety review"}</h3><span className="text-xs text-[#71857a]">{formatDate(alert.createdAt)}</span></div><div className="mt-4 space-y-3">{(alert.alerts || []).map((singleAlert, alertIndex) => <div key={singleAlert.relevantRecord?.recordId || alertIndex} className="border-t border-black/10 pt-3"><p className="font-bold text-[#315542]">{singleAlert.type || "Clinical alert"}</p><p className="mt-1 text-sm leading-6 text-[#52695b]">{singleAlert.message}</p>{singleAlert.evidence && <p className="mt-1 text-xs leading-5 text-[#71857a]">{singleAlert.evidence}</p>}{singleAlert.recommendation && <p className="mt-2 text-xs font-semibold text-[#25854d]">Recommendation: {singleAlert.recommendation}</p>}</div>)}</div>{alert.reviewed ? <p className="mt-4 text-xs font-bold text-[#25854d]">Reviewed: {alert.reviewAction} · {alert.reviewReason}</p> : <div className="mt-4 border-t border-black/10 pt-4"><input value={alertReviewReasons[alert._id] || ""} onChange={(event) => setAlertReviewReasons((current) => ({ ...current, [alert._id]: event.target.value }))} placeholder="Reason for acknowledging or overriding this alert" className="h-10 w-full rounded-xl border border-[#dfeee3] bg-white px-3 text-xs outline-none focus:border-[#25854d]" /><div className="mt-2 flex flex-wrap gap-2"><button type="button" disabled={reviewingAlert === alert._id} onClick={() => reviewAlert(alert, "acknowledged")} className="rounded-xl bg-[#237c4b] px-3 py-2 text-xs font-bold text-white disabled:opacity-60">Acknowledge</button><button type="button" disabled={reviewingAlert === alert._id} onClick={() => reviewAlert(alert, "overridden")} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-60">Override with reason</button></div></div>}</div>)}</div> : <div className="py-12 text-center"><ShieldCheck size={30} className="mx-auto text-[#4ba66d]" /><p className="mt-3 font-bold text-[#315542]">No safety alerts</p><p className="mt-1 text-sm text-[#84978b]">This patient has no active safety warnings.</p></div>)}
           </div>
