@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
 
-  const verifyServerSession = async (timeoutMs = 3000) => {
+  const verifyServerSession = async (timeoutMs = 1200) => {
     return Promise.race([
       (async () => {
         try {
@@ -49,7 +49,10 @@ export function AuthProvider({ children }) {
 
   const loadFirestoreUser = async (uid) => {
     try {
-      const userDoc = await getDoc(doc(db, "users", uid));
+      const userDoc = await Promise.race([
+        getDoc(doc(db, "users", uid)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Firebase profile lookup timed out.")), 1500)),
+      ]);
       if (userDoc.exists()) {
         return userDoc.data();
       }

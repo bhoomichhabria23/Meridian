@@ -40,16 +40,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
-
-import { auth, db } from "../../firebase";
+import { auth } from "../../firebase";
+import { API_BASE_URL } from "../../api/config";
 import Navbar from "../../components/Navbar";
 import { fetchProfile } from "../../services/profileService";
 import { exchangeFirebaseSession } from "../../services/authSessionService";
@@ -87,10 +79,101 @@ const formatUploadDateTime = (value) => {
     ? date.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
     : "Uploaded report";
 };
+const isUpcomingAppointment = (appointment) => {
+  const date = new Date(appointment.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return !Number.isNaN(date.getTime()) && date >= today && !["cancelled", "completed"].includes(String(appointment.status || "").toLowerCase());
+};
 const mergeReports = (...reportLists) => reportLists.flat().filter((report, index, all) => {
   const reportKey = report._id || report.reportId || report.id || report.fileName;
   return index === all.findIndex((item) => String(item._id || item.reportId || item.id || item.fileName) === String(reportKey));
 });
+const apiOrigin = (API_BASE_URL || "http://localhost:5000").replace(/\/api\/?$/, "").replace(/\/$/, "");
+const fetchPatientApi = async (path) => {
+  const response = await fetch(`${apiOrigin}${path}`, { credentials: "include" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || `Unable to load ${path}`);
+  return payload?.success && Object.hasOwn(payload, "data") ? payload.data : payload;
+};
+
+function UpcomingCarePanel({ appointments, reminders, onBook, onViewAppointments, onViewReminders }) {
+  const upcomingAppointments = appointments
+    .filter(isUpcomingAppointment)
+    .sort((first, second) => new Date(first.date) - new Date(second.date))
+    .slice(0, 3);
+  const testReminders = reminders
+    .filter((reminder) => reminder.type === "lab_test" && reminder.status === "active")
+    .sort((first, second) => new Date(first.date) - new Date(second.date))
+    .slice(0, 3);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <CardHeading icon={<CalendarDays size={17} />} title="Upcoming Care" />
+        <button type="button" onClick={onBook} className="rounded-lg border border-[#cfe5d5] px-3 py-2 text-[11px] font-semibold text-[#159447] hover:bg-[#f1faf3]">
+          Book appointment
+        </button>
+      </div>
+
+      {upcomingAppointments.length === 0 && testReminders.length === 0 ? (
+        <div className="flex min-h-[230px] flex-col items-center justify-center rounded-xl bg-[#fbfdfb] px-4 text-center">
+          <CalendarDays size={30} className="text-[#b9dec2]" />
+          <p className="mt-3 text-sm font-semibold text-gray-600">No upcoming appointments or test reminders</p>
+          <p className="mt-1 text-xs text-gray-400">Saved care items will appear here.</p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {upcomingAppointments.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-[#315343]">Appointments</h3>
+                <button type="button" onClick={onViewAppointments} className="text-[10px] font-semibold text-[#159447]">View all</button>
+              </div>
+              <div className="divide-y divide-[#edf3ee]">
+                {upcomingAppointments.map((appointment) => (
+                  <div key={appointment._id || appointment.id} className="flex items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-[#315343]">{appointment.doctorId?.userId?.name || appointment.doctorId?.name || "Care team"}</p>
+                      <p className="mt-1 text-[10px] text-gray-500">{appointment.appointmentType || "Appointment"} · {formatUploadDateTime(appointment.date)}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[#edf8f0] px-2 py-1 text-[9px] font-semibold capitalize text-[#25854d]">{appointment.status || "scheduled"}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {testReminders.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-[#315343]">Test reminders</h3>
+                <button type="button" onClick={onViewReminders} className="text-[10px] font-semibold text-[#159447]">View all</button>
+              </div>
+              <div className="divide-y divide-[#edf3ee]">
+                {testReminders.map((reminder) => {
+                  const reminderDate = new Date(reminder.date);
+                  const isOverdue = !Number.isNaN(reminderDate.getTime()) && reminderDate < today;
+                  return (
+                    <div key={reminder._id || reminder.id} className="flex items-center justify-between gap-3 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-[#315343]">{reminder.title}</p>
+                        <p className="mt-1 text-[10px] text-gray-500">{isOverdue ? "Overdue" : "Due"} · {formatUploadDateTime(reminder.date)}</p>
+                      </div>
+                      {isOverdue && <span className="shrink-0 rounded-full bg-[#fff1ec] px-2 py-1 text-[9px] font-semibold text-[#b84e35]">Overdue</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 /* ============================================================
@@ -99,7 +182,7 @@ const mergeReports = (...reportLists) => reportLists.flat().filter((report, inde
 
 const labTypes = {
   "HbA1c (%)": {
-    keys: ["HbA1c", "hba1c", "glucose"],
+    keys: ["HbA1c", "hba1c"],
     unit: "%",
     domain: [0, 12],
   },
@@ -136,6 +219,30 @@ const labTypes = {
   "Weight (kg)": { keys: ["weight"], unit: "kg", domain: [0, 250] },
 };
 
+const getLabTrendData = (labs, type, rangeMonths) => {
+  const config = labTypes[type];
+  const normalizeName = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - rangeMonths);
+  return labs
+    .filter((lab) => {
+      const name = lab.type || lab.testName || lab.name || "";
+      return config.keys.some((key) => normalizeName(name).includes(normalizeName(key)));
+    })
+    .map((lab) => {
+      const rawValue = lab.value ?? lab.result ?? lab.numericValue;
+      const dateValue = lab.month || lab.date || lab.createdAt || "—";
+      const date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      return {
+        month: Number.isNaN(date.getTime()) ? String(dateValue) : date.toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
+        value: Number.parseFloat(String(rawValue ?? "").replace(/,/g, "")),
+        date,
+      };
+    })
+    .filter((lab) => Number.isFinite(lab.value) && lab.value > 0 && (Number.isNaN(lab.date.getTime()) || lab.date >= cutoff))
+    .sort((first, second) => first.date - second.date);
+};
+
 
 /* ============================================================
    DASHBOARD
@@ -155,6 +262,7 @@ export default function Dashboard() {
   const [labs, setLabs] = useState([]);
   const [reports, setReports] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [reminders, setReminders] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [clinicalInsights, setClinicalInsights] = useState([]);
 
@@ -162,6 +270,8 @@ export default function Dashboard() {
 
   const [selectedLab, setSelectedLab] =
     useState("HbA1c (%)");
+  const [trendRange, setTrendRange] = useState(6);
+  const initialLabSelection = useRef(false);
 
   const [uploadFiles, setUploadFiles] =
     useState([]);
@@ -240,7 +350,7 @@ export default function Dashboard() {
           profileImage: "",
         });
 
-        const timelineIdentity = user?.uid || profile.firebaseUid || authenticatedUser.uid || authenticatedUser.firebaseUid || profile.id;
+        const timelineIdentity = user?.uid || profile.firebaseUid || authenticatedUser.uid || authenticatedUser.firebaseUid || profile._id || profile.id;
         const timeline = await loadPatientTimeline(timelineIdentity).catch(() => ({ healthTrends: {}, insights: [] }));
         setClinicalInsights(timeline.insights || []);
 
@@ -249,69 +359,81 @@ export default function Dashboard() {
            LOAD ALL COLLECTIONS IN PARALLEL TO REDUCE DASHBOARD WAIT
         ------------------------------------------------------ */
 
-        const apiReports = await fetchReports().catch(() => []);
+        const apiPatientId = profile._id || profile.id || profilePatient.userId?._id || profilePatient.userId || timelineIdentity;
+        const [apiReports, diagnosisRecords, medicationRecords, labRecords, appointmentRecords, safetyRecords, reminderRecords] = await Promise.all([
+          fetchReports().catch(() => []),
+          fetchPatientApi(`/api/medical-records/diagnoses/${encodeURIComponent(apiPatientId)}`).catch(() => []),
+          fetchPatientApi(`/api/medical-records/medications/${encodeURIComponent(apiPatientId)}`).catch(() => []),
+          fetchPatientApi(`/api/medical-records/labs/${encodeURIComponent(apiPatientId)}`).catch(() => []),
+          fetchPatientApi("/api/appointments").catch(() => []),
+          fetchPatientApi(`/api/safety/patient/${encodeURIComponent(apiPatientId)}/alerts`).catch(() => []),
+          fetchPatientApi("/api/reminders").catch(() => []),
+        ]);
         const serverReportList = Array.isArray(apiReports)
           ? apiReports
           : apiReports.reports || [];
-        setReports(serverReportList.filter((report) => isPatientOwnedReport(report)));
+        setReports(serverReportList);
 
-        const [conditionsSnap, medicationsSnap, labsSnap, appointmentsSnap, alertsSnap] =
-          await Promise.all([
-            getDocs(query(collection(db, "conditions"), where("userId", "==", timelineIdentity))),
-            getDocs(query(collection(db, "medications"), where("userId", "==", timelineIdentity))),
-            getDocs(query(collection(db, "labResults"), where("userId", "==", timelineIdentity))),
-            getDocs(query(collection(db, "appointments"), where("userId", "==", timelineIdentity))),
-            getDocs(query(collection(db, "alerts"), where("userId", "==", timelineIdentity))),
-          ]);
-
-        const firestoreConditions = conditionsSnap.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
+        const profileConditions = (profilePatient.conditions || []).map((item, index) => ({
+          id: item._id || `profile-condition-${index}`,
+          ...(typeof item === "string" ? { name: item } : item),
+        }));
+        const diagnosisConditions = (Array.isArray(diagnosisRecords) ? diagnosisRecords : []).map((item) => ({
+          id: item._id,
+          name: item.condition || item.name,
+          status: item.status,
         }));
         setConditions(
-          firestoreConditions.length > 0
-            ? firestoreConditions
-            : (profilePatient.conditions || []).map((item, index) => ({
-                id: item._id || `profile-condition-${index}`,
-                ...(typeof item === "string" ? { name: item } : item),
-              }))
+          [...profileConditions, ...diagnosisConditions].filter((condition, index, all) =>
+            all.findIndex((item) => String(item.name || item.condition || "").toLowerCase() === String(condition.name || condition.condition || "").toLowerCase()) === index
+          )
         );
 
-        setMedications(
-          medicationsSnap.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
+        setMedications(Array.isArray(medicationRecords) ? medicationRecords : []);
+
+        const structuredLabs = (Array.isArray(labRecords) ? labRecords : []).flatMap((record) =>
+          (record.results || []).map((result, index) => ({
+            id: `${record._id || record.id}-${index}`,
+            type: result.parameter || record.testName,
+            testName: result.parameter || record.testName,
+            value: result.value,
+            unit: result.unit,
+            status: result.status,
+            date: record.testDate || record.createdAt,
           }))
         );
+        const reportLabs = serverReportList.filter((report) => report.type === "lab").map((report) => ({
+          ...report,
+          type: report.testName || report.name || "Lab result",
+          testName: report.testName || report.name || "Lab result",
+          value: report.clinicalResult,
+          status: report.resultStatus && report.resultStatus !== "not_specified" ? report.resultStatus : report.status,
+        }));
+        const timelineLabs = Object.entries(timeline.healthTrends || {}).flatMap(([metric, values]) => values.map((item) => ({
+          id: `timeline-${metric}-${item.label}`,
+          type: metric,
+          value: item.value,
+          date: item.label,
+        })));
+        setLabs([...structuredLabs, ...reportLabs, ...timelineLabs]);
 
-        setLabs(
-          [
-            ...labsSnap.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-            })),
-            ...Object.entries(timeline.healthTrends || {}).flatMap(([metric, values]) => values.map((item) => ({
-              id: `timeline-${metric}-${item.label}`,
-              type: metric,
-              value: item.value,
-              date: item.label,
-            }))),
-          ]
-        );
+        setAppointments(Array.isArray(appointmentRecords) ? appointmentRecords : appointmentRecords.appointments || []);
+        setReminders(Array.isArray(reminderRecords) ? reminderRecords : []);
 
-        setAppointments(
-          appointmentsSnap.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-          }))
-        );
-
-        setAlerts(
-          alertsSnap.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-          }))
-        );
+        const alertItems = Array.isArray(safetyRecords) ? safetyRecords : safetyRecords.alerts || [];
+        setAlerts(alertItems.flatMap((record) => {
+          const details = record.alerts || [];
+          if (!details.length && record.status && record.status !== "SAFE") {
+            return [{ id: record._id, type: record.status === "HIGH_RISK" ? "red" : "orange", title: record.status.replaceAll("_", " "), description: "Review this medication safety alert with your care team.", date: record.createdAt }];
+          }
+          return details.map((alert, index) => ({
+            id: `${record._id}-${index}`,
+            type: alert.severity === "HIGH" ? "red" : alert.severity === "MEDIUM" ? "orange" : "yellow",
+            title: alert.type?.replaceAll("_", " ") || "Medication safety alert",
+            description: alert.message || alert.recommendation || alert.evidence,
+            date: record.createdAt,
+          }));
+        }));
 
       } catch (error) {
 
@@ -337,12 +459,18 @@ export default function Dashboard() {
         }
       );
 
+    const refreshOnFocus = () => {
+      if (!document.hidden) loadPatientData(auth.currentUser || sessionUser);
+    };
+    window.addEventListener("focus", refreshOnFocus);
+
 
     return () => {
 
       if (unsubscribe) {
         unsubscribe();
       }
+      window.removeEventListener("focus", refreshOnFocus);
 
     };
 
@@ -425,85 +553,29 @@ export default function Dashboard() {
   const currentLabConfig =
     labTypes[selectedLab];
 
+  const availableLabType = useMemo(
+    () => Object.keys(labTypes).find((type) => getLabTrendData(labs, type, trendRange).length > 0) || null,
+    [labs, trendRange]
+  );
+  const hasLabTrendData = Boolean(availableLabType);
+
+  useEffect(() => {
+    if (!availableLabType || initialLabSelection.current) return;
+    initialLabSelection.current = true;
+    if (!getLabTrendData(labs, selectedLab, trendRange).length) {
+      setSelectedLab(availableLabType);
+    }
+  }, [availableLabType, labs, selectedLab, trendRange]);
+
 
   /* ============================================================
      LAB TREND DATA
   ============================================================ */
 
-  const labData = useMemo(() => {
-
-    const keys =
-      currentLabConfig.keys;
-
-    const matchingLabs =
-      labs
-        .filter((lab) => {
-
-          const type =
-            String(
-              lab.type ||
-              lab.testName ||
-              lab.name ||
-              ""
-            ).toLowerCase();
-
-          return keys.some(
-            (key) =>
-              type === key.toLowerCase()
-          );
-
-        })
-        .map((lab) => {
-
-          const rawValue =
-            lab.value ??
-            lab.result ??
-            lab.numericValue;
-
-          const value =
-            Number(rawValue);
-
-          let month =
-            lab.month ||
-            lab.date ||
-            lab.createdAt ||
-            "—";
-
-          if (
-            typeof month === "object" &&
-            month?.toDate
-          ) {
-            month =
-              month.toDate()
-                .toLocaleDateString(
-                  "en-IN",
-                  {
-                    month: "short",
-                    year: "numeric",
-                  }
-                );
-          }
-
-          return {
-            month: String(month),
-            value,
-          };
-
-        })
-        .filter(
-          (lab) =>
-            Number.isFinite(lab.value) &&
-            lab.value > 0
-        );
-
-
-    return matchingLabs.slice(-6);
-
-  }, [
-    labs,
-    selectedLab,
-    currentLabConfig,
-  ]);
+  const labData = useMemo(
+    () => getLabTrendData(labs, selectedLab, trendRange),
+    [labs, selectedLab, trendRange]
+  );
 
 
   /* ============================================================
@@ -597,29 +669,8 @@ export default function Dashboard() {
      LAB STATUS COUNTS
   ============================================================ */
 
-  const normalLabs =
-    labs.filter(
-      (lab) =>
-        String(lab.status || "")
-          .toLowerCase() ===
-        "normal"
-    ).length;
-
-  const abnormalLabs =
-    labs.filter(
-      (lab) =>
-        String(lab.status || "")
-          .toLowerCase() ===
-        "abnormal"
-    ).length;
-
-  const criticalLabs =
-    labs.filter(
-      (lab) =>
-        String(lab.status || "")
-          .toLowerCase() ===
-        "critical"
-    ).length;
+  const activeMedicationCount = medications.filter((medication) => !medication.status || String(medication.status).toLowerCase() === "active").length;
+  const upcomingAppointments = appointments.filter(isUpcomingAppointment);
 
 
   /* ============================================================
@@ -681,10 +732,10 @@ export default function Dashboard() {
       setUploadMessage("Uploading reports...");
       const uploaded = await Promise.all(uploadFiles.map((file) => uploadReport(file)));
       const uploadedReports = uploaded.map((item) => item.report || item);
-      setReports((currentReports) => mergeReports(uploadedReports.filter((report) => isPatientOwnedReport(report)), currentReports));
+      setReports((currentReports) => mergeReports(uploadedReports, currentReports));
       fetchReports().then((latestReports) => {
         const serverReports = Array.isArray(latestReports) ? latestReports : latestReports.reports || [];
-        setReports((currentReports) => mergeReports(currentReports, serverReports.filter((report) => isPatientOwnedReport(report))));
+        setReports((currentReports) => mergeReports(currentReports, serverReports));
       }).catch(() => {});
       setUploadFiles([]);
       setUploadMessage("Reports uploaded successfully.");
@@ -740,7 +791,7 @@ export default function Dashboard() {
       token = serverSession.token;
     }
     const profile = await fetchProfile(token);
-    const identity = profile?.id || profile?.firebaseUid || profile?.patient?.userId || sessionUser?.id || sessionUser?.uid || sessionUser?.firebaseUid;
+    const identity = profile?._id || profile?.id || profile?.patient?.userId?._id || profile?.patient?.userId || sessionUser?.id || sessionUser?.uid || sessionUser?.firebaseUid;
     const apiOrigin = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/api\/?$/, "").replace(/\/$/, "");
     const request = async (path) => {
       if (!path) return null;
@@ -858,7 +909,7 @@ export default function Dashboard() {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast.success("Patient summary downloaded");
     } catch (error) {
       toast.error(error.message || "Unable to download patient summary");
@@ -866,7 +917,6 @@ export default function Dashboard() {
   };
 
   const recentReports = [...reports]
-    .filter((report) => isPatientOwnedReport(report))
     .sort((first, second) => new Date(second.date || second.createdAt) - new Date(first.date || first.createdAt))
     .slice(0, 3);
 
@@ -1100,9 +1150,7 @@ export default function Dashboard() {
                   <Pill size={19} />
                 }
                 title="Total Medications"
-                value={
-                  medications.length
-                }
+                value={activeMedicationCount}
                 subtitle="Active"
               />
 
@@ -1161,33 +1209,21 @@ export default function Dashboard() {
 
                 <StatCard
                   title="Medications"
-                  value={
-                    medications.length
-                  }
+                  value={activeMedicationCount}
                   subtitle="Active"
                   icon={Pill}
                 />
 
                 <StatCard
                   title="Upcoming Tests"
-                  value={
-                    appointments.filter(
-                      (a) =>
-                        String(
-                          a.type || ""
-                        ).toLowerCase() ===
-                        "test"
-                    ).length
-                  }
+                  value={upcomingAppointments.filter((appointment) => /test|lab/i.test(appointment.appointmentType || appointment.type || "")).length}
                   subtitle="Due Soon"
                   icon={TestTube2}
                 />
 
                 <StatCard
                   title="Appointments"
-                  value={
-                    appointments.length
-                  }
+                  value={upcomingAppointments.length}
                   subtitle="Scheduled"
                   icon={CalendarDays}
                 />
@@ -1235,7 +1271,7 @@ export default function Dashboard() {
                   </p>
 
 
-                  <button className="mt-4 flex items-center gap-1 rounded-lg border border-[#d9eadc] bg-white px-3 py-2 text-[11px] font-semibold text-[#159447] transition hover:bg-[#f1faf3]">
+                  <button onClick={() => navigate("/patient/labs")} className="mt-4 flex items-center gap-1 rounded-lg border border-[#d9eadc] bg-white px-3 py-2 text-[11px] font-semibold text-[#159447] transition hover:bg-[#f1faf3]">
 
                     {clinicalInsights.length > 0 ? clinicalInsights[0].title : "View Detailed Insights"}
 
@@ -1278,6 +1314,7 @@ export default function Dashboard() {
               CENTER
           ================================================== */}
 
+          {hasLabTrendData ? (
           <DashboardCard className="min-w-0">
 
             <div className="flex items-center justify-between gap-3">
@@ -1290,16 +1327,9 @@ export default function Dashboard() {
               />
 
 
-              <select className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] text-gray-600 outline-none">
-
-                <option>
-                  Last 6 Months
-                </option>
-
-                <option>
-                  Last 1 Year
-                </option>
-
+              <select value={trendRange} onChange={(event) => setTrendRange(Number(event.target.value))} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] text-gray-600 outline-none">
+                <option value={6}>Last 6 Months</option>
+                <option value={12}>Last 1 Year</option>
               </select>
 
             </div>
@@ -1559,6 +1589,17 @@ export default function Dashboard() {
             </div>
 
           </DashboardCard>
+          ) : (
+            <DashboardCard className="min-w-0">
+              <UpcomingCarePanel
+                appointments={appointments}
+                reminders={reminders}
+                onBook={() => navigate("/patient/appointments", { state: { openBooking: true } })}
+                onViewAppointments={() => navigate("/patient/appointments")}
+                onViewReminders={() => navigate("/patient/reminders")}
+              />
+            </DashboardCard>
+          )}
 
           {/* ==================================================
               RIGHT
@@ -1654,7 +1695,7 @@ export default function Dashboard() {
                     <CalendarDays />
                   }
                   label="Book Appointment"
-                  onClick={() => navigate("/patient/appointments")}
+                  onClick={() => navigate("/patient/appointments", { state: { openBooking: true } })}
                 />
 
                 <QuickAction
@@ -1751,157 +1792,82 @@ export default function Dashboard() {
           </DashboardCard>
 
 
-          {/* MONTHLY SUMMARY */}
+          {/* HEALTH PROGRESS */}
 
-          <DashboardCard>
+          <DashboardCard className="xl:col-span-2">
 
-            <h3 className="text-[14px] font-semibold">
+            <div className="flex flex-wrap items-start justify-between gap-3">
 
-              Monthly Health Summary
-
-            </h3>
-
-
-            <div className="mt-4 flex items-center gap-6">
-
-              <div className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-[10px] border-[#159447] border-r-[#dff0e3]">
-
-                <div className="text-center">
-
-                  <strong className="block text-[15px] text-[#159447]">
-
-                    {labs.length > 0
-                      ? "Good"
-                      : "No Data"}
-
-                  </strong>
-
-                  <span className="text-[9px] text-gray-400">
-
-                    Status
-
-                  </span>
-
-                </div>
-
+              <div>
+                <CardHeading icon={<LineChart size={17} />} title="Health Progress" />
+                <p className="mt-1 text-[10px] text-gray-400">
+                  Your latest measurements and recorded health trends
+                </p>
               </div>
 
-
-              <div className="space-y-3 text-[11px]">
-
-                <SummaryItem
-                  color="bg-[#159447]"
-                  label="Normal"
-                  value={
-                    normalLabs
-                  }
-                />
-
-                <SummaryItem
-                  color="bg-orange-400"
-                  label="Abnormal"
-                  value={
-                    abnormalLabs
-                  }
-                />
-
-                <SummaryItem
-                  color="bg-red-500"
-                  label="Critical"
-                  value={
-                    criticalLabs
-                  }
-                />
-
-              </div>
-
-            </div>
-
-
-            <p className="mt-3 text-[9px] text-gray-400">
-
-              Based on your recent lab results
-
-            </p>
-
-          </DashboardCard>
-
-
-          {/* RISK */}
-
-          <DashboardCard>
-
-            <div className="flex items-center justify-between">
-
-              <h3 className="text-[14px] font-semibold">
-
-                Risk & Safety Alerts
-
-              </h3>
-
-
-              <button className="text-[10px] font-semibold text-[#159447]">
-
-                View All
-
+              <button
+                type="button"
+                onClick={() => navigate("/patient/lab-results")}
+                className="text-[10px] font-semibold text-[#159447] hover:underline"
+              >
+                View details
               </button>
 
             </div>
 
+            <div className="mt-5 grid gap-4 md:grid-cols-[1.1fr_1fr]">
 
-            <div className="mt-2 divide-y divide-gray-100">
+              <div className="grid grid-cols-3 gap-2">
+                <ProgressMetric label="BMI" value={bmi || "—"} caption={bmi ? bmiStatus : "Not recorded"} />
+                <ProgressMetric label="Weight" value={patient.weight ? `${patient.weight}` : "—"} caption={patient.weight ? "kg" : "Not recorded"} />
+                <ProgressMetric label="Height" value={patient.height ? `${patient.height}` : "—"} caption={patient.height ? "cm" : "Not recorded"} />
+              </div>
 
-              {alerts.length > 0 ? (
-
-                alerts
-                  .slice(-3)
-                  .reverse()
-                  .map(
-                    (alert) => (
-
-                      <RiskAlert
-                        key={
-                          alert.id
-                        }
-                        type={
-                          alert.type ||
-                          "yellow"
-                        }
-                        title={
-                          alert.title ||
-                          "Health Alert"
-                        }
-                        description={
-                          alert.description ||
-                          "Please review this alert."
-                        }
-                        date={
-                          alert.date ||
-                          "Recent"
-                        }
-                      />
-
-                    )
-                  )
-
-              ) : (
-
-                <div className="py-5 text-center">
-
-                  <ShieldCheck
-                    size={24}
-                    className="mx-auto text-[#159447]"
-                  />
-
-                  <p className="mt-2 text-[10px] text-gray-500">
-
-                    No active safety alerts.
-
-                  </p>
-
+              <div className="rounded-xl border border-[#edf3ee] bg-[#fbfefc] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-semibold text-[#244b35]">
+                      {hasLabTrendData ? currentLabConfig?.label : "Lab trends"}
+                    </p>
+                    <p className="mt-1 text-[9px] text-gray-400">
+                      {hasLabTrendData ? "Latest recorded trend" : "No lab trend recorded"}
+                    </p>
+                  </div>
+                  <strong className="text-sm text-[#159447]">
+                    {latestLab ? `${latestLab.value} ${currentLabConfig.unit}` : "—"}
+                  </strong>
                 </div>
 
-              )}
+                {hasLabTrendData ? (
+                  <div className="mt-3 flex h-10 items-end gap-1.5">
+                    {labData.slice(-8).map((point, index, points) => {
+                      const values = points.map((item) => Number(item.value)).filter(Number.isFinite);
+                      const min = Math.min(...values);
+                      const max = Math.max(...values);
+                      const range = max - min || 1;
+                      const height = 20 + ((Number(point.value) - min) / range) * 80;
+                      return (
+                        <span
+                          key={`${point.month}-${index}`}
+                          className="min-w-0 flex-1 rounded-t bg-[#8ed3a2]"
+                          style={{ height: `${height}%` }}
+                          title={`${point.month}: ${point.value} ${currentLabConfig.unit}`}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-[10px] text-gray-400">
+                    Add lab results to start tracking trends.
+                  </p>
+                )}
+
+                {labChange !== null && (
+                  <p className="mt-2 text-[9px] text-gray-400">
+                    {Number(labChange) > 0 ? "+" : ""}{labChange} {currentLabConfig.unit} since the previous reading
+                  </p>
+                )}
+              </div>
 
             </div>
 
@@ -2348,110 +2314,30 @@ function QuickAction({
 
 
 /* ============================================================
-   SUMMARY ITEM
+   PROGRESS METRIC
 ============================================================ */
 
-function SummaryItem({
-  color,
+function ProgressMetric({
   label,
   value,
+  caption,
 }) {
 
   return (
 
-    <div className="flex items-center gap-2">
+    <div className="rounded-xl border border-[#edf3ee] bg-[#fbfefc] p-3">
 
-      <span
-        className={`h-2 w-2 rounded-full ${color}`}
-      />
-
-
-      <span className="w-16 text-gray-600">
-
+      <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">
         {label}
+      </p>
 
-      </span>
-
-
-      <strong>
-
+      <strong className="mt-2 block text-base text-[#244b35]">
         {value}
-
       </strong>
 
-    </div>
-
-  );
-
-}
-
-
-/* ============================================================
-   RISK ALERT
-============================================================ */
-
-function RiskAlert({
-  type,
-  title,
-  description,
-  date,
-}) {
-
-  const colors = {
-
-    red:
-      "bg-red-50 text-red-500",
-
-    orange:
-      "bg-orange-50 text-orange-500",
-
-    yellow:
-      "bg-yellow-50 text-yellow-500",
-
-  };
-
-
-  return (
-
-    <div className="flex items-center gap-3 py-2.5">
-
-      <div
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-          colors[type] ||
-          colors.yellow
-        }`}
-      >
-
-        <AlertTriangle
-          size={15}
-        />
-
-      </div>
-
-
-      <div className="min-w-0 flex-1">
-
-        <p className="text-[10px] font-semibold text-gray-700">
-
-          {title}
-
-        </p>
-
-
-        <p className="truncate text-[9px] text-gray-500">
-
-          {description}
-
-        </p>
-
-      </div>
-
-
-      <span className="whitespace-nowrap text-[8px] text-gray-400">
-
-        {date}
-
-      </span>
+      <p className="mt-1 text-[9px] text-[#159447]">
+        {caption}
+      </p>
 
     </div>
 

@@ -147,11 +147,9 @@ export default function LoginPage() {
       // REDIRECT AFTER SUCCESS MESSAGE
       // =====================================================
 
-      setTimeout(() => {
-        navigate(getDashboardPath(authenticatedRole), {
-          replace: true,
-        });
-      }, 1800);
+      navigate(getDashboardPath(authenticatedRole), {
+        replace: true,
+      });
 
     } catch (err) {
       console.error(

@@ -49,6 +49,7 @@ import DoctorPrescriptionDetails from "./pages/doctor/PrescriptionDetails";
 import DoctorPrescriptions from "./pages/doctor/Prescriptions";
 import DoctorPatientSearch from "./pages/doctor/PatientSearch";
 import DoctorPatients from "./pages/doctor/Patients";
+import DoctorNewPatient from "./pages/doctor/NewPatient";
 import DoctorAppointments from "./pages/doctor/Appointments";
 import DoctorSafetyAlerts from "./pages/doctor/SafetyAlerts";
 import DoctorAIAssistant from "./pages/doctor/AIAssistant";
@@ -67,6 +68,7 @@ import ReceptionDoctors from "./pages/reception/Doctors";
 import ReceptionSchedule from "./pages/reception/Schedule";
 import ReceptionProfile from "./pages/reception/Profile";
 import AddPatient from "./pages/reception/AddPatient";
+import ReceptionAssistant from "./pages/reception/Assistant";
 
 
 /* =========================================================
@@ -298,6 +300,15 @@ function AppRoutes() {
       />
 
       <Route
+        path="/doctor/patients/new"
+        element={
+          <ProtectedRoute role="doctor">
+            <DoctorNewPatient />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/doctor/patients/:id"
         element={
           <ProtectedRoute role="doctor">
@@ -365,6 +376,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute role="doctor">
             <DoctorProfile />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reception/assistant"
+        element={
+          <ProtectedRoute role="receptionist">
+            <ReceptionAssistant />
           </ProtectedRoute>
         }
       />

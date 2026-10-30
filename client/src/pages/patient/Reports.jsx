@@ -522,6 +522,7 @@ export default function PatientReports() {
           report={selected}
           onClose={() => setSelected(null)}
           onDownload={handleDownload}
+          onDelete={handleDelete}
         />
       )}
     </div>
@@ -538,7 +539,7 @@ function Stat({ label, value }) {
     </div>
   );
 }
-function ReportDrawer({ report, onClose, onDownload }) {
+function ReportDrawer({ report, onClose, onDownload, onDelete }) {
   const [summary, setSummary] = useState(report.aiSummary || "");
   const [summaryLoading, setSummaryLoading] = useState(false);
 
@@ -626,13 +627,22 @@ function ReportDrawer({ report, onClose, onDownload }) {
             {summary || "AI summary will appear when clinical interpretation is available."}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => onDownload(report)}
-          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25854d] px-4 py-3 text-sm font-bold text-white"
-        >
-          <Download size={16} /> Download report
-        </button>
+        <div className="mt-6 flex gap-2">
+          <button
+            type="button"
+            onClick={() => onDownload(report)}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#25854d] px-4 py-3 text-sm font-bold text-white"
+          >
+            <Download size={16} /> Download report
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(report)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50"
+          >
+            <Trash2 size={16} /> Delete
+          </button>
+        </div>
       </aside>
     </div>
   );

@@ -1,5 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const Doctor = require("../models/Doctor");
 const Patient = require("../models/Patient");
@@ -195,6 +196,51 @@ router.get("/dashboard", verifyToken, async (req, res) => {
 });
 
 /**
+ * POST /api/doctors/patients
+ * Create a patient record directly from the doctor's workspace.
+ */
+router.post("/patients", verifyToken, requireRole("doctor"), async (req, res) => {
+  try {
+    const { name, email, phone, dateOfBirth, gender, bloodGroup, conditions } = req.body || {};
+    if (!name?.trim() || !email?.trim() || !phone?.trim()) {
+      return res.status(400).json({ message: "Name, email, and phone are required." });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (await User.exists({ email: normalizedEmail })) {
+      return res.status(409).json({ message: "An account with this email already exists." });
+    }
+
+    const temporaryPassword = `Meridian-${Math.random().toString(36).slice(2, 8)}!`;
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      phone: phone.trim(),
+      role: "patient",
+      password: await bcrypt.hash(temporaryPassword, 12),
+    });
+    const doctor = await Doctor.findOne({ userId: req.user.id }).select("_id patients");
+    const patient = await Patient.create({
+      userId: user._id,
+      dateOfBirth: dateOfBirth || undefined,
+      gender: gender || "prefer_not",
+      bloodGroup: bloodGroup || "unknown",
+      conditions: conditions?.trim() ? [{ name: conditions.trim(), diagnosedOn: new Date() }] : [],
+      assignedDoctors: doctor?._id ? [doctor._id] : [],
+    });
+    if (doctor && !doctor.patients.some((item) => String(item) === String(patient._id))) {
+      doctor.patients.push(patient._id);
+      await doctor.save();
+    }
+
+    res.status(201).json({ message: "Patient created successfully.", patient, temporaryPassword });
+  } catch (error) {
+    console.error("Doctor patient creation error:", error);
+    res.status(500).json({ message: "Unable to create patient." });
+  }
+});
+
+/**
  * GET /api/doctors/patients
  * Return patients linked to this doctor through active appointment records.
  * Uses confirmed appointments as the main filter, while also including
@@ -206,12 +252,16 @@ router.get("/patients", verifyToken, requireRole("doctor"), async (req, res) => 
     const doctorIds = [req.user.id];
     if (doctor?._id) doctorIds.push(doctor._id);
 
+    const doctorRecord = await Doctor.findOne({ userId: req.user.id }).select("_id patients").lean();
     const appointments = await Appointment.find({
       doctorId: { $in: doctorIds },
       status: "confirmed",
     }).select("patientId status").lean();
 
-    const appointmentPatientIds = [...new Set(appointments.map((item) => item.patientId?.toString()).filter(Boolean))];
+    const appointmentPatientIds = [...new Set([
+      ...appointments.map((item) => item.patientId?.toString()),
+      ...(doctorRecord?.patients || []).map((item) => item.toString()),
+    ].filter(Boolean))];
     if (!appointmentPatientIds.length) return res.json([]);
 
     const patients = await Patient.find({
@@ -372,6 +422,9 @@ router.get(
         patientRecord = await Patient.findOne({ userId: req.params.patientId }).select("userId");
       }
 
+      const doctorRecord = await Doctor.findOne({ userId: req.user.id }).select("_id").lean();
+      const doctorIds = [req.user.id, doctorRecord?._id].filter(Boolean);
+
       if (!patientRecord) {
         return res.status(404).json({
           success: false,
@@ -405,6 +458,7 @@ router.get(
         }),
         Appointment.find({
           patientId: patientRecord._id,
+          doctorId: { $in: doctorIds },
         }),
       ]);
 

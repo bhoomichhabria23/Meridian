@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const ReminderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  medicationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Medication' },
   title: { type: String, required: true, trim: true },
   type: { type: String, enum: ['medication', 'appointment', 'lab_test', 'follow_up', 'health_checkup'], default: 'health_checkup' },
   date: { type: Date, required: true },

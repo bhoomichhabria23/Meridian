@@ -12,11 +12,14 @@ const app = express();
 app.use(cookieParser());
 
 const allowedOrigins = [process.env.CLIENT_URL].filter(Boolean);
+const isLocalDevelopmentOrigin = (origin) =>
+  process.env.NODE_ENV !== "production" &&
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || isLocalDevelopmentOrigin(origin)) {
         callback(null, true);
         return;
       }

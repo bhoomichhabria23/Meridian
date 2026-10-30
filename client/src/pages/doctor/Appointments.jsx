@@ -53,6 +53,14 @@ export default function DoctorAppointments() {
     loadAppointments();
   }, []);
 
+  useEffect(() => {
+    const refreshOnFocus = () => {
+      if (!document.hidden) loadAppointments();
+    };
+    window.addEventListener('focus', refreshOnFocus);
+    return () => window.removeEventListener('focus', refreshOnFocus);
+  }, []);
+
   const filtered = useMemo(() => {
     return appointments
       .filter((appointment) => selectedStatus !== 'all' || (appointment.status || '').toLowerCase() !== 'pending')

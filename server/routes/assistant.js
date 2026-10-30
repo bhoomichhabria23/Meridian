@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const GroqService = require("../services/groqService");
 const { verifyToken } = require("../middleware/auth");
 const Patient = require("../models/Patient");
@@ -13,6 +14,7 @@ const Appointment = require("../models/Appointment");
 const User = require("../models/User");
 const Report = require("../models/Report");
 const AuditLog = require("../models/AuditLog");
+const Reminder = require("../models/Reminder");
 
 const router = express.Router();
 
@@ -25,6 +27,7 @@ router.post("/chat", verifyToken, async (req, res) => {
     const {
       message: requestMessage,
       patientId,
+      conversationId,
       useContext,
     } = req.body;
     const message = requestMessage || req.body.messages?.filter((item) => item.role === 'user').at(-1)?.content;
@@ -47,13 +50,98 @@ router.post("/chat", verifyToken, async (req, res) => {
     // Patients automatically receive their own context. Staff only receive
     // context for a patient explicitly selected in the workflow.
     let patientContext = null;
+    const userLookup = mongoose.Types.ObjectId.isValid(req.user.id)
+      ? { _id: req.user.id }
+      : { firebaseUid: req.user.uid || req.user.id };
+    const currentUser = await User.findOne(userLookup)
+      .select("name email phone role specialization")
+      .lean();
+    const staffUser = ["doctor", "receptionist"].includes(req.user.role)
+      ? currentUser
+      : null;
     let contextPatientId = patientId;
-    const availableDoctors = useContext !== false
+    let availableDoctors = useContext !== false && req.user.role !== "doctor"
       ? await Doctor.find({})
         .select("specialty hospital department workingHours userId")
         .populate("userId", "name email specialization")
         .lean()
       : [];
+    let clinicContext = null;
+    if (useContext !== false && ["doctor", "receptionist"].includes(req.user.role)) {
+      if (req.user.role === "doctor") {
+        const currentDoctor = await Doctor.findOne({ userId: req.user.id })
+          .select("specialty hospital department workingHours slotDuration patients userId")
+          .populate("userId", "name email phone specialization")
+          .lean();
+        if (!currentDoctor) {
+          return res.status(404).json({ success: false, message: "Doctor profile not found." });
+        }
+        availableDoctors = [currentDoctor];
+
+        const appointments = await Appointment.find({ doctorId: currentDoctor._id })
+          .sort({ date: -1 })
+          .populate("patientId", "patientCode age gender bloodGroup height weight bmi userId")
+          .lean();
+        const patientIds = [...new Set([
+          ...(currentDoctor.patients || []).map(String),
+          ...appointments.map((appointment) => appointment.patientId?._id).filter(Boolean).map(String),
+        ])];
+        const patients = await Patient.find({ _id: { $in: patientIds } })
+          .select("patientCode age gender bloodGroup height weight bmi userId assignedDoctors")
+          .populate("userId", "name email phone")
+          .lean();
+        const patientUserIds = patients.map((patient) => patient.userId?._id || patient.userId).filter(Boolean);
+        const [medications, labs, prescriptions, reports] = await Promise.all([
+          Medication.find({
+            $or: [
+              { doctorId: req.user.id },
+              { patientId: { $in: patientUserIds } },
+            ],
+          }).sort({ createdAt: -1 }).lean(),
+          LabResult.find({ patientId: { $in: patientUserIds } }).sort({ testDate: -1 }).lean(),
+          Prescription.find({
+            $or: [
+              { doctorId: req.user.id },
+              { patientId: { $in: patientUserIds } },
+            ],
+          }).sort({ date: -1 }).lean(),
+          Report.find({ patientId: { $in: patientUserIds } }).sort({ date: -1 }).lean(),
+        ]);
+        clinicContext = {
+          currentDoctor,
+          patients,
+          appointments,
+          medications,
+          labs,
+          prescriptions,
+          reports,
+          reminders: [],
+        };
+      } else {
+        const [patients, appointments, medications, labs, prescriptions, reports, reminders] = await Promise.all([
+          Patient.find({}).select("patientCode age gender bloodGroup height weight bmi userId").populate("userId", "name email phone").lean(),
+          Appointment.find({}).sort({ date: -1 }).populate("patientId", "patientCode userId").populate("doctorId", "userId specialty department").lean(),
+          Medication.find({}).sort({ createdAt: -1 }).lean(),
+          LabResult.find({}).sort({ testDate: -1 }).lean(),
+          Prescription.find({}).sort({ date: -1 }).lean(),
+          Report.find({}).sort({ date: -1 }).lean(),
+          Reminder.find({}).sort({ date: 1 }).lean(),
+        ]);
+        clinicContext = { patients, appointments, medications, labs, prescriptions, reports, reminders };
+      }
+    }
+    if (
+      useContext !== false &&
+      req.user.role === "doctor" &&
+      contextPatientId &&
+      clinicContext &&
+      !clinicContext.patients.some((patient) => String(patient._id) === String(contextPatientId))
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only access patients assigned to or seen by you.",
+      });
+    }
     if (useContext !== false && req.user.role === "patient") {
       const ownPatient = await Patient.findOne({ userId: req.user.id }).select("_id");
       contextPatientId = ownPatient?._id;
@@ -124,7 +212,13 @@ router.post("/chat", verifyToken, async (req, res) => {
     }
 
     if (!patientContext && useContext !== false) {
-      patientContext = { availableDoctors };
+      patientContext = { availableDoctors, clinicContext, staffUser, currentUser };
+    } else if (patientContext) {
+      patientContext.clinicContext = clinicContext;
+      patientContext.staffUser = staffUser;
+      patientContext.currentUser = currentUser;
+    } else if (useContext !== false) {
+      patientContext = { availableDoctors, currentUser };
     }
 
     // Call Groq API
@@ -141,7 +235,8 @@ router.post("/chat", verifyToken, async (req, res) => {
       patientId || null,
       message,
       response.message,
-      req.user.role
+      req.user.role,
+      conversationId || null
     );
 
     // Log audit
@@ -184,13 +279,14 @@ router.get(
   verifyToken,
   async (req, res) => {
     try {
-      const { patientId } = req.query;
+      const { patientId, conversationId } = req.query;
 
       const history =
         await GroqService.getChatHistory(
           req.user.id,
           patientId || null,
           req.user.role
+          , conversationId || null
         );
 
       if (!history) {
@@ -198,13 +294,20 @@ router.get(
           success: true,
           data: {
             messages: [],
+            conversations: [],
           },
         });
       }
 
+      const conversations = await GroqService.getChatConversations(
+        req.user.id,
+        patientId || null,
+        req.user.role
+      );
+
       return res.status(200).json({
         success: true,
-        data: history,
+        data: { ...history.toObject(), conversations },
       });
     } catch (error) {
       console.error(

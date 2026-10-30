@@ -35,16 +35,17 @@ export async function saveUserProfileToFirebase(firebaseUser, profile = {}) {
 }
 
 export async function exchangeFirebaseSession(firebaseUser, profile = {}) {
-  const idToken = await firebaseUser.getIdToken(true);
-  let storedProfile = null;
-  if ((!profile.phone || !profile.specialization) && firebaseUser.uid) {
-    try {
-      const profileSnapshot = await getDoc(doc(db, "users", firebaseUser.uid));
-      storedProfile = profileSnapshot.exists() ? profileSnapshot.data() : null;
-    } catch (error) {
+  const profilePromise = (!profile.phone || !profile.specialization) && firebaseUser.uid
+    ? getDoc(doc(db, "users", firebaseUser.uid)).catch((error) => {
       console.warn("Firebase profile could not be loaded:", error.message);
-    }
-  }
+      return null;
+    })
+    : Promise.resolve(null);
+  const [idToken, profileSnapshot] = await Promise.all([
+    firebaseUser.getIdToken(),
+    profilePromise,
+  ]);
+  const storedProfile = profileSnapshot?.exists() ? profileSnapshot.data() : null;
   const sessionProfile = {
     ...profile,
     phone: profile.phone || storedProfile?.phone || "",
@@ -75,14 +76,10 @@ export async function exchangeFirebaseSession(firebaseUser, profile = {}) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.message || "Unable to create Meridian session.");
 
-  try {
-    await saveUserProfileToFirebase(firebaseUser, {
+  saveUserProfileToFirebase(firebaseUser, {
       ...sessionProfile,
       specialization: sessionProfile.specialization || result.user?.specialization || "",
-    });
-  } catch (error) {
-    console.warn("Firebase profile could not be saved:", error.message);
-  }
+    }).catch((error) => console.warn("Firebase profile could not be saved:", error.message));
 
   return { ...result.user, token: result.token };
 }

@@ -9,6 +9,7 @@ const Report = require("../models/Report");
 const Patient = require("../models/Patient");
 const authMiddleware = require("../middleware/authMiddleware");
 const { createEvent } = require("../utils/medicalEvent");
+const MedicalEvent = require("../models/MedicalEvent");
 const { extractReportText } = require("../utils/ocrService");
 const { classifyReport } = require("../utils/reportClassifier");
 const GroqService = require("../services/groqService");
@@ -332,12 +333,12 @@ router.get("/patient/:patientId", authMiddleware, async (req, res) => {
       .sort({ date: -1 })
       .lean();
 
-    const receptionistReports = reports.filter((report) => {
+    const doctorReports = reports.filter((report) => {
       const uploaderRole = report.uploadedBy?.role || report.uploadedByRole || "patient";
-      return uploaderRole === "receptionist";
+      return ["receptionist", "doctor"].includes(uploaderRole);
     });
 
-    res.json(receptionistReports.map((report) => ({
+    res.json(doctorReports.map((report) => ({
       ...report,
       uploadedByRole: report.uploadedBy?.role || report.uploadedByRole || "patient",
       reviewStatus: report.reviewStatus || "pending",
@@ -470,14 +471,20 @@ router.post(
         console.error("Report OCR error:", ocrError.message);
         ocrStatus = "failed";
       }
-      const classifiedType = req.user.role === "receptionist" && reportType ? reportType : classifyReport({
+      const explicitType = {
+        scan: "imaging",
+        discharge: "other",
+        consultation: "other",
+        prescription_copy: "other",
+      }[reportType] || reportType;
+      const classifiedType = explicitType || classifyReport({
         extractedText,
         name: title,
         fileName: req.file.originalname,
       });
-      if ((reportType === "lab" || classifiedType === "lab") && req.user.role !== "receptionist") {
+      if ((reportType === "lab" || classifiedType === "lab") && !["doctor", "receptionist"].includes(req.user.role)) {
         fs.unlink(req.file.path, () => {});
-        return res.status(403).json({ message: "Laboratory report uploads are restricted to receptionists." });
+        return res.status(403).json({ message: "Laboratory report uploads are restricted to doctors and receptionists." });
       }
 
       const report =
@@ -565,13 +572,12 @@ router.get(
     try {
       const report = await findOwnedReport(req.params.id, req.user.id);
 
-      if (!report || !report.fileUrl) {
-        return res.status(404).json({ message: "Report file not found." });
-      }
+      if (!report) return res.status(404).json({ message: "Report not found or not accessible." });
+      if (!report.fileUrl) return res.status(404).json({ message: "This report has no uploaded file." });
 
       const filePath = reportFilePath(report.fileUrl);
       if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ message: "Report file not found." });
+        return res.status(404).json({ message: "The uploaded report file is missing from server storage." });
       }
 
       return res.download(filePath, report.fileName || report.name);
@@ -608,6 +614,10 @@ router.delete(
 
       await Report.deleteOne({
         _id: report._id,
+      });
+      await MedicalEvent.deleteMany({
+        refModel: "Report",
+        refId: report._id,
       });
 
       res.json({

@@ -11,6 +11,8 @@ const Patient = require("../models/Patient");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
 const { createEvent } = require("../utils/medicalEvent");
+const SafetyEngine = require("../services/safetyEngine");
+const SafetyAlert = require("../models/SafetyAlert");
 
 const uploadDirectory = path.join(__dirname, "../uploads/prescriptions");
 
@@ -39,6 +41,15 @@ const allowedMimeTypes = [
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
+
+async function patientOwnerIds(identity) {
+  const owner = mongoose.Types.ObjectId.isValid(identity)
+    ? await User.findById(identity).select("_id")
+    : await User.findOne({ firebaseUid: identity }).select("_id");
+  if (!owner) return [];
+  const patient = await Patient.findOne({ userId: owner._id }).select("_id");
+  return [owner._id, patient?._id].filter(Boolean);
+}
 
 const upload = multer({
   storage,
@@ -144,6 +155,14 @@ router.post("/", authMiddleware, upload.array("attachments", 5), async (req, res
       attachments: normalizedAttachments,
       notes: notes || "",
     });
+    const safetyAnalysis = await SafetyEngine.analyzePrescription(String(patient.userId), prescription, req.user.id);
+    const safetyAlert = await SafetyAlert.create({
+      prescriptionId: prescription._id,
+      patientId: patient.userId,
+      doctorId: req.user.id,
+      status: safetyAnalysis.status,
+      alerts: safetyAnalysis.alerts,
+    });
     await createEvent({
       patientId: patient._id,
       type: "prescription",
@@ -154,7 +173,7 @@ router.post("/", authMiddleware, upload.array("attachments", 5), async (req, res
       createdBy: req.user.id,
     });
 
-    res.status(201).json({ success: true, data: prescription });
+    res.status(201).json({ success: true, data: { prescription, safetyAnalysis, safetyAlert } });
   } catch (error) {
     console.error("Prescription create error:", error);
     const message = error?.message || "Failed to save prescription";
@@ -265,11 +284,10 @@ router.get(
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
         return res.status(404).json({ message: "Prescription not found" });
       }
-      const prescription =
-        await Prescription.findOne({
-          _id: req.params.id,
-          patientId: req.user.id,
-        }).populate("doctorId", "name specialization qualification");
+      const prescription = await Prescription.findOne({
+        _id: req.params.id,
+        patientId: { $in: await patientOwnerIds(req.user.id) },
+      }).populate("doctorId", "name specialization qualification");
 
       if (!prescription) {
         return res.status(404).json({
@@ -335,11 +353,10 @@ router.get(
   authMiddleware,
   async (req, res) => {
     try {
-      const prescription =
-        await Prescription.findOne({
-          _id: req.params.id,
-          patientId: req.user.id,
-        });
+      const prescription = await Prescription.findOne({
+        _id: req.params.id,
+        patientId: { $in: await patientOwnerIds(req.user.id) },
+      });
 
       if (!prescription) {
         return res.status(404).json({

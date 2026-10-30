@@ -70,20 +70,27 @@ router.get('/:id/slots', verifyToken, async (req, res) => {
     const doctor = await Doctor.findById(req.params.id);
     if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
 
-    const start        = (doctor.workingHours && doctor.workingHours.start) || '09:00';
-    const end          = (doctor.workingHours && doctor.workingHours.end)   || '17:00';
-    const slotDuration = doctor.slotDuration || 20;
-
-    const [startH, startM] = start.split(':').map(Number);
-    const [endH,   endM]   = end.split(':').map(Number);
+    const configuredStart = doctor.workingHours?.start || '10:00';
+    const configuredEnd = doctor.workingHours?.end || '19:00';
+    const usesLegacyDefaults = configuredStart === '09:00' && configuredEnd === '17:00';
+    const minutesFromTime = (value, fallback) => {
+      const [hours, minutes] = String(value).split(':').map(Number);
+      return Number.isInteger(hours) && Number.isInteger(minutes) && hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60
+        ? hours * 60 + minutes
+        : fallback;
+    };
+    const startMin = Math.max(10 * 60, usesLegacyDefaults ? 10 * 60 : minutesFromTime(configuredStart, 10 * 60));
+    const endMin = Math.min(19 * 60, usesLegacyDefaults ? 19 * 60 : minutesFromTime(configuredEnd, 19 * 60));
+    const slotDuration = 30;
+    if (endMin <= startMin) return res.status(400).json({ message: 'Doctor working hours do not overlap the 10:00–19:00 booking window.' });
 
     const allSlots = [];
-    let cur = startH * 60 + startM;
-    const endMin = endH * 60 + endM;
+    let cur = startMin;
     while (cur < endMin) {
       const h = Math.floor(cur / 60).toString().padStart(2, '0');
       const m = (cur % 60).toString().padStart(2, '0');
-      allSlots.push(`${h}:${m}`);
+      const overlapsLunchBreak = cur < 15 * 60 && cur + slotDuration > 14 * 60;
+      if (!overlapsLunchBreak) allSlots.push(`${h}:${m}`);
       cur += slotDuration;
     }
 

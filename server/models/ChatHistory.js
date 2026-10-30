@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { randomUUID } = require("crypto");
 
 const chatHistorySchema = new mongoose.Schema(
   {
@@ -19,6 +20,11 @@ const chatHistorySchema = new mongoose.Schema(
         default: "patient",
         index: true,
       },
+    conversationId: {
+      type: String,
+      default: randomUUID,
+      index: true,
+    },
 
     messages: [
       {

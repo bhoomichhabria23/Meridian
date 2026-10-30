@@ -28,7 +28,7 @@ export default function DoctorProfile() {
     licenseNo: '',
     department: '',
     hospital: '',
-    workingHours: { start: '09:00', end: '17:00' },
+    workingHours: { start: '10:00', end: '19:00' },
     bio: '',
   });
   const [loading, setLoading] = useState(true);
@@ -41,6 +41,10 @@ export default function DoctorProfile() {
       setLoading(true);
       const res = await api.get('/api/doctors/me/profile');
       const data = res.data?.data || res.data || {};
+      const savedHours = data.workingHours || { start: '10:00', end: '19:00' };
+      const workingHours = savedHours.start === '09:00' && savedHours.end === '17:00'
+        ? { ...savedHours, start: '10:00', end: '19:00' }
+        : savedHours;
       setProfile({
         name: data.userId?.name || user?.name || '',
         email: data.userId?.email || user?.email || '',
@@ -49,7 +53,7 @@ export default function DoctorProfile() {
         licenseNo: data.licenseNo || '',
         department: data.department || '',
         hospital: data.hospital || '',
-        workingHours: data.workingHours || { start: '09:00', end: '17:00' },
+        workingHours,
         bio: data.bio || '',
       });
     } catch (err) {
@@ -159,11 +163,11 @@ export default function DoctorProfile() {
               </label>
 
               <label className="text-sm font-bold text-[#183a28]">Start time
-                <input type="time" value={profile.workingHours?.start || '09:00'} onChange={(event) => handleHoursChange('start', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+                <input type="time" value={profile.workingHours?.start || '10:00'} onChange={(event) => handleHoursChange('start', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
               </label>
 
               <label className="text-sm font-bold text-[#183a28]">End time
-                <input type="time" value={profile.workingHours?.end || '17:00'} onChange={(event) => handleHoursChange('end', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
+                <input type="time" value={profile.workingHours?.end || '19:00'} onChange={(event) => handleHoursChange('end', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dfeee3] bg-[#f9fcfa] px-3 text-sm text-[#183a28] outline-none focus:border-[#1aa65c]" />
               </label>
 
               <label className="text-sm font-bold text-[#183a28] md:col-span-2">Professional bio
@@ -213,7 +217,7 @@ export default function DoctorProfile() {
 
               <div className="rounded-2xl border border-[#edf3ef] bg-[#f9fcfa] p-4">
                 <p className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-[#5c7868]">Availability</p>
-                <p className="text-base font-bold text-[#183a28]">{profile.workingHours?.start || '09:00'} – {profile.workingHours?.end || '17:00'}</p>
+                <p className="text-base font-bold text-[#183a28]">{profile.workingHours?.start || '10:00'} – {profile.workingHours?.end || '19:00'}</p>
               </div>
 
               {profile.bio && (
